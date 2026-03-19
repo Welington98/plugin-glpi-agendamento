@@ -1,0 +1,26 @@
+{
+  "branches": [
+    "main"
+  ],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "storage/plugins/agendamento/CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "storage/plugins/agendamento/CHANGELOG.md",
+          "storage/plugins/agendamento/agendamento.xml"
+        ],
+        "message": "chore(release): publish version ${nextRelease.version}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}

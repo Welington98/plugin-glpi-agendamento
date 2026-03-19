@@ -1,0 +1,145 @@
+/* Agendamento Plugin CSS - GLPI Native */
+
+/* 1. Z-Index */
+body.modal-open .select2-container--open {
+    z-index: 1060;
+}
+
+/* 2. Calendar Toolbar */
+.plugin-agendamento-calendar .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.plugin-agendamento-calendar .fc-toolbar-title {
+    font-size: 1.15rem !important;
+    font-weight: 600;
+    color: var(--tblr-body-color, #1e293b);
+}
+
+.plugin-agendamento-calendar .fc-button {
+    font-size: 0.8125rem !important;
+    padding: 0.35rem 0.75rem !important;
+    border-radius: 4px !important;
+}
+
+.plugin-agendamento-calendar .fc-button-primary {
+    background-color: #206bc4 !important;
+    border-color: #206bc4 !important;
+    color: #fff !important;
+}
+
+.plugin-agendamento-calendar .fc-button-primary:hover {
+    background-color: #1a569d !important;
+    border-color: #1a569d !important;
+}
+
+.plugin-agendamento-calendar .fc-button-primary:not(:disabled).fc-button-active,
+.plugin-agendamento-calendar .fc-button-primary:not(:disabled):active {
+    background-color: #1a569d !important;
+    border-color: #1a569d !important;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.15) !important;
+}
+
+/* 3. Column Headers */
+.plugin-agendamento-calendar .fc-head .fc-day-header,
+.plugin-agendamento-calendar .fc-col-header-cell-cushion {
+    text-decoration: none !important;
+    color: var(--tblr-body-color, #334155);
+    font-weight: 600;
+    font-size: 0.8125rem;
+    padding: 8px 4px !important;
+    text-transform: capitalize;
+}
+
+/* 4. Time Axis */
+.plugin-agendamento-calendar .fc-axis,
+.plugin-agendamento-calendar .fc-timegrid-axis-cushion {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--tblr-muted, #64748b);
+}
+
+/* 5. Events */
+.plugin-agendamento-calendar .fc-event {
+    border: 0 !important;
+    border-radius: 4px !important;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    transition: box-shadow 0.15s ease;
+    overflow: hidden;
+}
+
+.plugin-agendamento-calendar .fc-event:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.plugin-agendamento-calendar .fc-event-main {
+    padding: 0 !important;
+}
+
+.plugin-agendamento-event-inner {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 6px;
+    gap: 1px;
+    line-height: 1.25;
+    overflow: hidden;
+}
+
+.plugin-agendamento-event-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.plugin-agendamento-event-meta {
+    font-size: 0.6875rem;
+    opacity: 0.85;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 6. Status */
+.plugin-agendamento-event-cancelado {
+    opacity: 0.6;
+}
+.plugin-agendamento-event-cancelado .plugin-agendamento-event-title {
+    text-decoration: line-through;
+}
+
+/* 7. Today */
+.plugin-agendamento-calendar .fc-day-today {
+    background-color: rgba(255, 243, 205, 0.35) !important;
+}
+
+/* 8. Now Indicator */
+.plugin-agendamento-calendar .fc-now-indicator-line {
+    border-color: #e53e3e !important;
+}
+.plugin-agendamento-calendar .fc-now-indicator-arrow {
+    border-top-color: transparent !important;
+    border-bottom-color: transparent !important;
+    border-left-color: #e53e3e !important;
+}
+
+/* 9. Grid */
+.plugin-agendamento-calendar td,
+.plugin-agendamento-calendar th {
+    border-color: #e9ecef !important;
+}
+
+.plugin-agendamento-calendar .fc-time-grid .fc-slats .fc-minor td {
+    border-top-style: dotted;
+}
+
+/* 10. Dropdown Cleanup */
+.modal-body .dropdown-footer,
+.modal-body .dropdown-header,
+form > .dropdown-footer {
+    display: none !important;
+}

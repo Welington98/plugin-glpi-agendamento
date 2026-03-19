@@ -1,0 +1,66 @@
+<?php
+
+function plugin_agendamento_install()
+{
+    global $DB;
+
+    $version = plugin_version_agendamento();
+    $migration = new Migration($version['version']);
+
+    plugin_agendamento_install_tables($migration);
+
+    $migration->executeMigration();
+
+    return true;
+}
+
+function plugin_agendamento_uninstall()
+{
+    global $DB;
+
+    if ($DB->tableExists('glpi_plugin_agendamento_agendamentos')) {
+        $DB->dropTable('glpi_plugin_agendamento_agendamentos');
+    }
+
+    return true;
+}
+
+function plugin_agendamento_install_tables(Migration $migration)
+{
+    global $DB;
+
+    $defaultCharset = DBConnection::getDefaultCharset();
+    $defaultCollation = DBConnection::getDefaultCollation();
+    $defaultKeySign = DBConnection::getDefaultPrimaryKeySignOption();
+
+    if ($DB->tableExists('glpi_plugin_agendamento_agendamentos')) {
+        if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'contato_cliente')) {
+            $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `contato_cliente` varchar(255) DEFAULT NULL AFTER `tecnico_nome`");
+        }
+        if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'endereco_cliente')) {
+            $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `endereco_cliente` text DEFAULT NULL AFTER `contato_cliente`");
+        }
+        return;
+    }
+
+    $DB->doQuery("CREATE TABLE `glpi_plugin_agendamento_agendamentos` (
+        `id` int {$defaultKeySign} NOT NULL AUTO_INCREMENT,
+        `tickets_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
+        `users_id_tech` int {$defaultKeySign} NOT NULL DEFAULT 0,
+        `tecnico_nome` varchar(255) DEFAULT NULL,
+        `contato_cliente` varchar(255) DEFAULT NULL,
+        `endereco_cliente` text DEFAULT NULL,
+        `data_hora_inicio` datetime NOT NULL,
+        `data_hora_fim` datetime DEFAULT NULL,
+        `status` varchar(50) NOT NULL DEFAULT 'agendado',
+        `observacoes` text DEFAULT NULL,
+        `users_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
+        `tickettasks_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
+        `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+        `date_mod` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `idx_plugin_agendamento_ticket` (`tickets_id`),
+        KEY `idx_plugin_agendamento_inicio` (`data_hora_inicio`),
+        KEY `idx_plugin_agendamento_status` (`status`)
+    ) ENGINE=InnoDB DEFAULT CHARSET={$defaultCharset} COLLATE={$defaultCollation}");
+}

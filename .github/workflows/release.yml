@@ -1,0 +1,46 @@
+name: Release Orchestrator
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  determine-version:
+    uses: ./.github/workflows/semantic-release.yml
+
+  extract-version:
+    needs: determine-version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+      is_release: ${{ steps.get-version.outputs.is_release }}
+    steps:
+      - name: Extract Version from Release or Calculated
+        id: get-version
+        run: |
+          if [[ -n "${{ needs.determine-version.outputs['new-release-version'] }}" ]]; then
+            VERSION="${{ needs.determine-version.outputs['new-release-version'] }}"
+            IS_RELEASE="false"
+            echo "🎯 Usando versão calculada: $VERSION"
+          else
+            VERSION="${{ github.sha }}"
+            IS_RELEASE="false"
+            echo "🔨 Fallback para SHA: $VERSION"
+          fi
+
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "is_release=${IS_RELEASE}" >> $GITHUB_OUTPUT
+          echo "✅ Versão configurada: $VERSION"

@@ -1,0 +1,124 @@
+name: Semantic Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      node-version:
+        description: 'Versão do Node.js a ser usada'
+        required: false
+        type: string
+        default: '20'
+      working-directory:
+        description: 'Diretório de trabalho do projeto'
+        required: false
+        type: string
+        default: '.'
+      dry-run:
+        description: 'Executar em modo dry-run (sem publicar)'
+        required: false
+        type: boolean
+        default: false
+      branches:
+        description: 'Branches para release (JSON array)'
+        required: false
+        type: string
+        default: |
+          [
+            'main'
+          ]
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Versão do Node.js a ser usada'
+        required: false
+        type: string
+        default: '20'
+      working-directory:
+        description: 'Diretório de trabalho do projeto'
+        required: false
+        type: string
+        default: '.'
+      dry-run:
+        description: 'Executar em modo dry-run (sem publicar)'
+        required: false
+        type: boolean
+        default: false
+      branches:
+        description: 'Branches para release (JSON array)'
+        required: false
+        type: string
+        default: |
+          [
+            'main'
+          ]
+    outputs:
+      new-release-published:
+        description: 'Se uma nova release foi publicada'
+        value: "${{ jobs.release.outputs.new-release-published }}"
+      new-release-version:
+        description: 'Versão da nova release'
+        value: "${{ jobs.release.outputs.new-release-version }}"
+
+jobs:
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    outputs:
+      new-release-published: "${{ steps.semantic.outputs.new_release_published }}"
+      new-release-version: "${{ steps.semantic.outputs.new_release_version }}"
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory || '.' }}
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version || '20' }}
+
+      - name: Semantic Release
+        uses: cycjimmy/semantic-release-action@v5
+        id: semantic
+        with:
+          semantic_version: 24
+          dry_run: ${{ inputs.dry-run || false }}
+          branches: ${{ inputs.branches }}
+          extra_plugins: |
+            @semantic-release/git@^10
+            @semantic-release/changelog@^6
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Atualizar tag major
+        if: ${{ steps.semantic.outputs.new_release_published == 'true' && !inputs.dry-run }}
+        run: |
+          VERSION="${{ steps.semantic.outputs.new_release_version }}"
+          MAJOR_TAG="v${VERSION%%.*}"
+          git config user.email actions@github.com
+          git config user.name GitHub Actions
+          git tag -f "$MAJOR_TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$MAJOR_TAG" --force
+
+      - name: Publicar resumo
+        if: always()
+        run: |
+          {
+            echo "## Semantic Release"
+            echo ""
+            echo "- New release published: ${{ steps.semantic.outputs.new_release_published }}"
+            echo "- New release version: ${{ steps.semantic.outputs.new_release_version }}"
+            if [[ "${{ steps.semantic.outputs.new_release_published }}" == "true" && "${{ inputs.dry-run }}" != "true" ]]; then
+              VERSION="${{ steps.semantic.outputs.new_release_version }}"
+              echo "- Major tag updated: v${VERSION%%.*}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

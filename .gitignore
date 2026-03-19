@@ -1,0 +1,6 @@
+glpi-11.0.4
+storage/mysql
+files/
+storage/glpi/logs
+storage/glpi/config
+.env
