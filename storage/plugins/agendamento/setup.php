@@ -11,6 +11,8 @@ function plugin_init_agendamento()
 
     Plugin::registerClass('GlpiPlugin\\Agendamento\\MenuAgendamento');
     Plugin::registerClass('GlpiPlugin\\Agendamento\\Config', ['addtabon' => 'Config']);
+    Plugin::registerClass('GlpiPlugin\\Agendamento\\GoogleCalendarAuth');
+    Plugin::registerClass('GlpiPlugin\\Agendamento\\GoogleCalendarSync');
 
     if (Session::getLoginUserID() && Session::haveRight('ticket', READ)) {
         $PLUGIN_HOOKS['menu_toadd']['agendamento'] = [

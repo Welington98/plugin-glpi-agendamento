@@ -143,3 +143,31 @@ body.modal-open .select2-container--open {
 form > .dropdown-footer {
     display: none !important;
 }
+
+/* 11. Google Calendar */
+.btn-google-connect {
+    background-color: #4285f4;
+    border-color: #4285f4;
+    color: #fff;
+    font-size: 0.8125rem;
+}
+
+.btn-google-connect:hover,
+.btn-google-connect:focus {
+    background-color: #3367d6;
+    border-color: #3367d6;
+    color: #fff;
+}
+
+.badge.bg-success-lt {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.google-sync-icon {
+    display: inline-flex;
+    align-items: center;
+    color: #4285f4;
+    font-size: 0.75rem;
+    margin-left: 4px;
+}

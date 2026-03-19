@@ -18,6 +18,10 @@ function plugin_agendamento_uninstall()
 {
     global $DB;
 
+    if ($DB->tableExists('glpi_plugin_agendamento_google_tokens')) {
+        $DB->dropTable('glpi_plugin_agendamento_google_tokens');
+    }
+
     if ($DB->tableExists('glpi_plugin_agendamento_agendamentos')) {
         $DB->dropTable('glpi_plugin_agendamento_agendamentos');
     }
@@ -40,6 +44,25 @@ function plugin_agendamento_install_tables(Migration $migration)
         if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'endereco_cliente')) {
             $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `endereco_cliente` text DEFAULT NULL AFTER `contato_cliente`");
         }
+        if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'google_event_id')) {
+            $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `google_event_id` varchar(255) DEFAULT NULL");
+        }
+
+        if (!$DB->tableExists('glpi_plugin_agendamento_google_tokens')) {
+            $DB->doQuery("CREATE TABLE `glpi_plugin_agendamento_google_tokens` (
+                `id` int {$defaultKeySign} NOT NULL AUTO_INCREMENT,
+                `users_id` int {$defaultKeySign} NOT NULL,
+                `access_token` text DEFAULT NULL,
+                `refresh_token` text DEFAULT NULL,
+                `token_expiry` datetime DEFAULT NULL,
+                `calendar_id` varchar(255) DEFAULT 'primary',
+                `is_active` tinyint(1) DEFAULT 1,
+                `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+                `date_mod` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `users_id` (`users_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET={$defaultCharset} COLLATE={$defaultCollation}");
+        }
         return;
     }
 
@@ -56,6 +79,7 @@ function plugin_agendamento_install_tables(Migration $migration)
         `observacoes` text DEFAULT NULL,
         `users_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
         `tickettasks_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
+        `google_event_id` varchar(255) DEFAULT NULL,
         `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
         `date_mod` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),
@@ -63,4 +87,20 @@ function plugin_agendamento_install_tables(Migration $migration)
         KEY `idx_plugin_agendamento_inicio` (`data_hora_inicio`),
         KEY `idx_plugin_agendamento_status` (`status`)
     ) ENGINE=InnoDB DEFAULT CHARSET={$defaultCharset} COLLATE={$defaultCollation}");
+
+    if (!$DB->tableExists('glpi_plugin_agendamento_google_tokens')) {
+        $DB->doQuery("CREATE TABLE `glpi_plugin_agendamento_google_tokens` (
+            `id` int {$defaultKeySign} NOT NULL AUTO_INCREMENT,
+            `users_id` int {$defaultKeySign} NOT NULL,
+            `access_token` text DEFAULT NULL,
+            `refresh_token` text DEFAULT NULL,
+            `token_expiry` datetime DEFAULT NULL,
+            `calendar_id` varchar(255) DEFAULT 'primary',
+            `is_active` tinyint(1) DEFAULT 1,
+            `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+            `date_mod` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `users_id` (`users_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$defaultCharset} COLLATE={$defaultCollation}");
+    }
 }

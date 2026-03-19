@@ -10,6 +10,9 @@ use Session;
 use Ticket as GlpiTicket;
 use User;
 
+use GlpiPlugin\Agendamento\GoogleCalendarAuth;
+use GlpiPlugin\Agendamento\GoogleCalendarSync;
+
 class Agendamento
 {
     private const TABLE = 'glpi_plugin_agendamento_agendamentos';
@@ -405,6 +408,7 @@ class Agendamento
         }
 
         self::syncLinkedTask($agendamentoId);
+        self::syncGoogleCalendar($agendamentoId);
         return $agendamentoId;
     }
 
@@ -448,6 +452,7 @@ class Agendamento
         ]);
 
         self::syncLinkedTask($agendamentoId);
+        self::syncGoogleCalendar($agendamentoId);
     }
 
     public static function updateStatus(int $ticketId, int $agendamentoId, string $status, string $cancelReason = ''): void
@@ -486,6 +491,13 @@ class Agendamento
             }
 
             self::syncLinkedTask($agendamentoId);
+
+            if ($status === self::STATUS_CANCELADO) {
+                self::deleteGoogleCalendarEvent($agendamentoId);
+            } else {
+                self::syncGoogleCalendar($agendamentoId);
+            }
+
             $DB->commit();
         } catch (\Throwable $e) {
             $DB->rollBack();
@@ -519,6 +531,7 @@ class Agendamento
         ]);
 
         self::syncLinkedTask($agendamentoId);
+        self::syncGoogleCalendar($agendamentoId);
     }
 
     public static function getForPeriod(string $startDateTime, string $endDateTime, ?int $techId = null): array
@@ -744,6 +757,9 @@ class Agendamento
                 'noTask' => __('Sem TicketTask vinculada.', 'agendamento'),
             ],
         ];
+        $googleSyncEnabled = (int) ($pluginConfig['google_sync_enabled'] ?? 0) === 1
+            && trim($pluginConfig['google_client_id'] ?? '') !== '';
+        $googleConnected = $googleSyncEnabled && $isOwnView && GoogleCalendarAuth::isConnected($currentUserId);
         ?>
         <div class="card mb-3">
             <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -752,6 +768,24 @@ class Agendamento
                     <?php echo htmlescape($pageTitle); ?>
                 </h3>
                 <div class="d-flex gap-2">
+                    <?php if ($googleSyncEnabled && $isOwnView) { ?>
+                        <?php if ($googleConnected) { ?>
+                            <span class="badge bg-success-lt me-1 d-flex align-items-center">
+                                <i class="ti ti-brand-google me-1"></i>
+                                <?php echo htmlescape(__('Google Calendar conectado', 'agendamento')); ?>
+                            </span>
+                            <a href="<?php echo htmlescape($rootDoc . '/plugins/agendamento/front/google_action.php?action=sync&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true))); ?>" class="btn btn-sm btn-outline-success" title="<?php echo htmlescape(__('Sincronizar agora', 'agendamento')); ?>">
+                                <i class="ti ti-refresh me-1"></i><?php echo htmlescape(__('Sincronizar', 'agendamento')); ?>
+                            </a>
+                            <a href="<?php echo htmlescape($rootDoc . '/plugins/agendamento/front/google_action.php?action=disconnect&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true))); ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('<?php echo htmlescape(__('Deseja desconectar o Google Calendar?', 'agendamento')); ?>');">
+                                <i class="ti ti-unlink me-1"></i><?php echo htmlescape(__('Desconectar', 'agendamento')); ?>
+                            </a>
+                        <?php } else { ?>
+                            <a href="<?php echo htmlescape($rootDoc . '/plugins/agendamento/front/google_action.php?action=connect&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true))); ?>" class="btn btn-sm btn-google-connect">
+                                <i class="ti ti-brand-google me-1"></i><?php echo htmlescape(__('Conectar Google Calendar', 'agendamento')); ?>
+                            </a>
+                        <?php } ?>
+                    <?php } ?>
                     <div class="btn-group btn-group-sm" role="group">
                         <a href="<?php echo htmlescape($buildUrl(['mode' => 'list', 'status' => $statusFilter])); ?>" class="btn <?php echo $viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'; ?>">
                             <i class="ti ti-list me-1"></i><?php echo htmlescape(__('Lista', 'agendamento')); ?>
@@ -907,6 +941,63 @@ class Agendamento
             echo "</form>";
         }
         echo "</article>";
+    }
+
+    private static function syncGoogleCalendar(int $agendamentoId): void
+    {
+        global $DB;
+
+        try {
+            $agendamento = self::getById($agendamentoId);
+            if ($agendamento === null) {
+                return;
+            }
+
+            $techUserId = (int) ($agendamento['users_id_tech'] ?? 0);
+            if ($techUserId <= 0 || !GoogleCalendarAuth::isConnected($techUserId)) {
+                return;
+            }
+
+            $googleEventId = GoogleCalendarSync::syncAgendamento($agendamento, $techUserId);
+            if ($googleEventId !== null && empty($agendamento['google_event_id'])) {
+                $DB->update(self::TABLE, [
+                    'google_event_id' => $googleEventId,
+                ], [
+                    'id' => $agendamentoId,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Toolbox::logInFile('agendamento', "Google Calendar sync error for #{$agendamentoId}: " . $e->getMessage());
+        }
+    }
+
+    private static function deleteGoogleCalendarEvent(int $agendamentoId): void
+    {
+        global $DB;
+
+        try {
+            $agendamento = self::getById($agendamentoId);
+            if ($agendamento === null) {
+                return;
+            }
+
+            $googleEventId = $agendamento['google_event_id'] ?? '';
+            $techUserId = (int) ($agendamento['users_id_tech'] ?? 0);
+
+            if ($googleEventId === '' || $techUserId <= 0) {
+                return;
+            }
+
+            GoogleCalendarSync::deleteEvent($techUserId, $googleEventId);
+
+            $DB->update(self::TABLE, [
+                'google_event_id' => null,
+            ], [
+                'id' => $agendamentoId,
+            ]);
+        } catch (\Throwable $e) {
+            \Toolbox::logInFile('agendamento', "Google Calendar delete error for #{$agendamentoId}: " . $e->getMessage());
+        }
     }
 
     private static function syncLinkedTask(int $agendamentoId): void
