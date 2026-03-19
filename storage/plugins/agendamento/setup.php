@@ -18,6 +18,8 @@ function plugin_init_agendamento()
         $PLUGIN_HOOKS['menu_toadd']['agendamento'] = [
             'plugins' => 'GlpiPlugin\\Agendamento\\MenuAgendamento',
         ];
+
+        $PLUGIN_HOOKS[Glpi\Plugin\Hooks::DISPLAY_CENTRAL]['agendamento'] = 'plugin_agendamento_display_central';
     }
 }
 

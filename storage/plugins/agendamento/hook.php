@@ -14,6 +14,11 @@ function plugin_agendamento_install()
     return true;
 }
 
+function plugin_agendamento_display_central()
+{
+    GlpiPlugin\Agendamento\Agendamento::showCentralWidget();
+}
+
 function plugin_agendamento_uninstall()
 {
     global $DB;
