@@ -4,6 +4,8 @@ use GlpiPlugin\Agendamento\Agendamento;
 
 include '../../../inc/includes.php';
 
+global $CFG_GLPI;
+
 Session::checkLoginUser();
 
 if (!Session::haveRight('plugin_agendamento', READ)) {
