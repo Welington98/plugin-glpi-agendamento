@@ -10,6 +10,9 @@ use Session;
 use Ticket as GlpiTicket;
 use User;
 
+use GlpiPlugin\Agendamento\GoogleCalendarAuth;
+use GlpiPlugin\Agendamento\GoogleCalendarSync;
+
 class Agendamento
 {
     private const TABLE = 'glpi_plugin_agendamento_agendamentos';
@@ -405,6 +408,7 @@ class Agendamento
         }
 
         self::syncLinkedTask($agendamentoId);
+        self::syncGoogleCalendar($agendamentoId);
         return $agendamentoId;
     }
 
@@ -448,6 +452,7 @@ class Agendamento
         ]);
 
         self::syncLinkedTask($agendamentoId);
+        self::syncGoogleCalendar($agendamentoId);
     }
 
     public static function updateStatus(int $ticketId, int $agendamentoId, string $status, string $cancelReason = ''): void
@@ -486,6 +491,13 @@ class Agendamento
             }
 
             self::syncLinkedTask($agendamentoId);
+
+            if ($status === self::STATUS_CANCELADO) {
+                self::deleteGoogleCalendarEvent($agendamentoId);
+            } else {
+                self::syncGoogleCalendar($agendamentoId);
+            }
+
             $DB->commit();
         } catch (\Throwable $e) {
             $DB->rollBack();
@@ -519,6 +531,7 @@ class Agendamento
         ]);
 
         self::syncLinkedTask($agendamentoId);
+        self::syncGoogleCalendar($agendamentoId);
     }
 
     public static function getForPeriod(string $startDateTime, string $endDateTime, ?int $techId = null): array
@@ -744,6 +757,9 @@ class Agendamento
                 'noTask' => __('Sem TicketTask vinculada.', 'agendamento'),
             ],
         ];
+        $googleSyncEnabled = (int) ($pluginConfig['google_sync_enabled'] ?? 0) === 1
+            && trim($pluginConfig['google_client_id'] ?? '') !== '';
+        $googleConnected = $googleSyncEnabled && $isOwnView && GoogleCalendarAuth::isConnected($currentUserId);
         ?>
         <div class="card mb-3">
             <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -752,6 +768,24 @@ class Agendamento
                     <?php echo htmlescape($pageTitle); ?>
                 </h3>
                 <div class="d-flex gap-2">
+                    <?php if ($googleSyncEnabled && $isOwnView) { ?>
+                        <?php if ($googleConnected) { ?>
+                            <span class="badge bg-success-lt me-1 d-flex align-items-center">
+                                <i class="ti ti-brand-google me-1"></i>
+                                <?php echo htmlescape(__('Google Calendar conectado', 'agendamento')); ?>
+                            </span>
+                            <a href="<?php echo htmlescape($rootDoc . '/plugins/agendamento/front/google_action.php?action=sync&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true))); ?>" class="btn btn-sm btn-outline-success" title="<?php echo htmlescape(__('Sincronizar agora', 'agendamento')); ?>">
+                                <i class="ti ti-refresh me-1"></i><?php echo htmlescape(__('Sincronizar', 'agendamento')); ?>
+                            </a>
+                            <a href="<?php echo htmlescape($rootDoc . '/plugins/agendamento/front/google_action.php?action=disconnect&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true))); ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('<?php echo htmlescape(__('Deseja desconectar o Google Calendar?', 'agendamento')); ?>');">
+                                <i class="ti ti-unlink me-1"></i><?php echo htmlescape(__('Desconectar', 'agendamento')); ?>
+                            </a>
+                        <?php } else { ?>
+                            <a href="<?php echo htmlescape($rootDoc . '/plugins/agendamento/front/google_action.php?action=connect&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true))); ?>" class="btn btn-sm btn-google-connect">
+                                <i class="ti ti-brand-google me-1"></i><?php echo htmlescape(__('Conectar Google Calendar', 'agendamento')); ?>
+                            </a>
+                        <?php } ?>
+                    <?php } ?>
                     <div class="btn-group btn-group-sm" role="group">
                         <a href="<?php echo htmlescape($buildUrl(['mode' => 'list', 'status' => $statusFilter])); ?>" class="btn <?php echo $viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'; ?>">
                             <i class="ti ti-list me-1"></i><?php echo htmlescape(__('Lista', 'agendamento')); ?>
@@ -907,6 +941,63 @@ class Agendamento
             echo "</form>";
         }
         echo "</article>";
+    }
+
+    private static function syncGoogleCalendar(int $agendamentoId): void
+    {
+        global $DB;
+
+        try {
+            $agendamento = self::getById($agendamentoId);
+            if ($agendamento === null) {
+                return;
+            }
+
+            $techUserId = (int) ($agendamento['users_id_tech'] ?? 0);
+            if ($techUserId <= 0 || !GoogleCalendarAuth::isConnected($techUserId)) {
+                return;
+            }
+
+            $googleEventId = GoogleCalendarSync::syncAgendamento($agendamento, $techUserId);
+            if ($googleEventId !== null && empty($agendamento['google_event_id'])) {
+                $DB->update(self::TABLE, [
+                    'google_event_id' => $googleEventId,
+                ], [
+                    'id' => $agendamentoId,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Toolbox::logInFile('agendamento', "Google Calendar sync error for #{$agendamentoId}: " . $e->getMessage());
+        }
+    }
+
+    private static function deleteGoogleCalendarEvent(int $agendamentoId): void
+    {
+        global $DB;
+
+        try {
+            $agendamento = self::getById($agendamentoId);
+            if ($agendamento === null) {
+                return;
+            }
+
+            $googleEventId = $agendamento['google_event_id'] ?? '';
+            $techUserId = (int) ($agendamento['users_id_tech'] ?? 0);
+
+            if ($googleEventId === '' || $techUserId <= 0) {
+                return;
+            }
+
+            GoogleCalendarSync::deleteEvent($techUserId, $googleEventId);
+
+            $DB->update(self::TABLE, [
+                'google_event_id' => null,
+            ], [
+                'id' => $agendamentoId,
+            ]);
+        } catch (\Throwable $e) {
+            \Toolbox::logInFile('agendamento', "Google Calendar delete error for #{$agendamentoId}: " . $e->getMessage());
+        }
     }
 
     private static function syncLinkedTask(int $agendamentoId): void
@@ -1417,5 +1508,186 @@ class Agendamento
         ]);
 
         return implode(', ', $parts);
+    }
+
+    public static function showCentralWidget(): void
+    {
+        global $CFG_GLPI, $DB;
+
+        $userId = (int) Session::getLoginUserID();
+        if ($userId <= 0) {
+            return;
+        }
+
+        if (!$DB->tableExists(self::TABLE)) {
+            return;
+        }
+
+        $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
+        $todayStart = date('Y-m-d 00:00:00');
+        $weekEnd = date('Y-m-d 23:59:59', strtotime('+7 days'));
+
+        $iterator = $DB->request([
+            'SELECT' => [
+                self::TABLE . '.*',
+                'glpi_tickets.name AS ticket_name',
+            ],
+            'FROM' => self::TABLE,
+            'LEFT JOIN' => [
+                'glpi_tickets' => [
+                    'ON' => [
+                        self::TABLE => 'tickets_id',
+                        'glpi_tickets' => 'id',
+                    ],
+                ],
+            ],
+            'WHERE' => [
+                self::TABLE . '.users_id_tech' => $userId,
+                self::TABLE . '.status' => [self::STATUS_AGENDADO, self::STATUS_CONFIRMADO],
+                self::TABLE . '.data_hora_inicio' => ['>=', $todayStart],
+                [self::TABLE . '.data_hora_inicio' => ['<=', $weekEnd]],
+            ],
+            'ORDER' => [self::TABLE . '.data_hora_inicio ASC'],
+            'LIMIT' => 10,
+        ]);
+
+        $agendamentos = [];
+        foreach ($iterator as $row) {
+            $agendamentos[] = $row;
+        }
+
+        $countAll = 0;
+        $countIterator = $DB->request([
+            'SELECT' => ['COUNT' => 'id AS total'],
+            'FROM' => self::TABLE,
+            'WHERE' => [
+                'users_id_tech' => $userId,
+                'status' => [self::STATUS_AGENDADO, self::STATUS_CONFIRMADO],
+                'data_hora_inicio' => ['>=', $todayStart],
+            ],
+        ]);
+        foreach ($countIterator as $r) {
+            $countAll = (int) ($r['total'] ?? 0);
+        }
+
+        $todayStr = date('Y-m-d');
+        $tomorrowStr = date('Y-m-d', strtotime('+1 day'));
+        $meusUrl = $rootDoc . '/plugins/agendamento/front/meus_agendamentos.php';
+        $agendaUrl = $rootDoc . '/plugins/agendamento/front/agendamento.php';
+        ?>
+        <tr><td colspan="2" style="padding: 0;">
+        <div class="card mb-4 shadow-sm" id="plugin-agendamento-central-widget">
+            <div class="card-header border-bottom" style="padding: 1rem 1.25rem;">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <h3 class="card-title mb-0" style="font-size: 1.1rem; font-weight: 600;">
+                        <i class="ti ti-calendar-event me-2 text-primary"></i>
+                        <?php echo __('Minha Agenda', 'agendamento'); ?>
+                        <?php if ($countAll > 0) { ?>
+                            <span class="badge bg-primary ms-2" style="font-size: 0.75rem;"><?php echo $countAll; ?></span>
+                        <?php } ?>
+                    </h3>
+                    <div class="d-flex gap-2">
+                        <a href="<?php echo htmlspecialchars($meusUrl); ?>" class="btn btn-sm btn-outline-primary">
+                            <i class="ti ti-calendar-user me-1"></i><?php echo __('Meus Agendamentos', 'agendamento'); ?>
+                        </a>
+                        <a href="<?php echo htmlspecialchars($agendaUrl); ?>" class="btn btn-sm btn-outline-secondary">
+                            <i class="ti ti-calendar me-1"></i><?php echo __('Agenda Geral', 'agendamento'); ?>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <?php if (empty($agendamentos)) { ?>
+                <div class="card-body text-center text-muted" style="padding: 2.5rem 1rem;">
+                    <i class="ti ti-calendar-off" style="font-size: 2.5rem; opacity: 0.4;"></i>
+                    <p class="mb-0 mt-3" style="font-size: 0.95rem;"><?php echo __('Nenhum agendamento nos próximos 7 dias.', 'agendamento'); ?></p>
+                </div>
+            <?php } else { ?>
+                <div class="card-body" style="padding: 0.75rem 1.25rem;">
+                    <div class="d-flex flex-column gap-2">
+                        <?php foreach ($agendamentos as $ag) {
+                            $ticketId = (int) ($ag['tickets_id'] ?? 0);
+                            $ticketName = $ag['ticket_name'] ?? '';
+                            $status = self::normalizeStatus((string) ($ag['status'] ?? ''));
+                            $startAt = strtotime((string) ($ag['data_hora_inicio'] ?? ''));
+                            $endAt = strtotime((string) ($ag['data_hora_fim'] ?? ''));
+                            $endereco = trim((string) ($ag['endereco_cliente'] ?? ''));
+                            $contato = trim((string) ($ag['contato_cliente'] ?? ''));
+
+                            $dateStr = $startAt !== false ? date('Y-m-d', $startAt) : '';
+                            $isToday = ($dateStr === $todayStr);
+                            $isTomorrow = ($dateStr === $tomorrowStr);
+
+                            if ($isToday) {
+                                $dayBadge = '<span class="badge bg-danger-lt" style="font-size: 0.7rem;">Hoje</span>';
+                                $borderColor = '#e53e3e';
+                                $bgColor = 'rgba(229,62,62,0.03)';
+                            } elseif ($isTomorrow) {
+                                $dayBadge = '<span class="badge bg-warning-lt" style="font-size: 0.7rem;">Amanhã</span>';
+                                $borderColor = '#dd6b20';
+                                $bgColor = 'rgba(221,107,32,0.03)';
+                            } else {
+                                $dayBadge = '';
+                                $borderColor = '#e2e8f0';
+                                $bgColor = '#fff';
+                            }
+
+                            $statusBadge = match ($status) {
+                                self::STATUS_CONFIRMADO => '<span class="badge bg-warning-lt"><i class="ti ti-check me-1"></i>' . __('Confirmado', 'agendamento') . '</span>',
+                                default => '<span class="badge bg-info-lt"><i class="ti ti-clock me-1"></i>' . __('Agendado', 'agendamento') . '</span>',
+                            };
+
+                            $timeStr = $startAt !== false ? date('H:i', $startAt) : '';
+                            $endTimeStr = ($endAt !== false && $endAt > $startAt) ? ' - ' . date('H:i', $endAt) : '';
+                            $dateDisplay = $startAt !== false ? date('d/m', $startAt) : '';
+                        ?>
+                        <div class="rounded-3" style="border-left: 3px solid <?php echo $borderColor; ?>; background: <?php echo $bgColor; ?>; padding: 0.75rem 1rem;">
+                            <div class="d-flex align-items-start justify-content-between gap-3">
+                                <div class="flex-grow-1" style="min-width: 0;">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <a href="<?php echo htmlspecialchars($rootDoc . '/front/ticket.form.php?id=' . $ticketId); ?>" class="text-decoration-none fw-semibold" style="font-size: 0.9rem;">
+                                            <i class="ti ti-ticket me-1"></i>#<?php echo $ticketId; ?>
+                                        </a>
+                                        <?php if ($ticketName !== '') { ?>
+                                            <span class="text-muted text-truncate" style="font-size: 0.85rem;"><?php echo htmlspecialchars(mb_strimwidth($ticketName, 0, 50, '...')); ?></span>
+                                        <?php } ?>
+                                    </div>
+                                    <div class="d-flex align-items-center flex-wrap gap-2" style="font-size: 0.8rem;">
+                                        <?php if ($dayBadge !== '') { echo $dayBadge; } ?>
+                                        <span class="text-muted">
+                                            <i class="ti ti-calendar-event me-1"></i><?php echo $dateDisplay; ?>
+                                        </span>
+                                        <span class="fw-medium">
+                                            <i class="ti ti-clock me-1 text-muted"></i><?php echo $timeStr . $endTimeStr; ?>
+                                        </span>
+                                        <?php echo $statusBadge; ?>
+                                        <?php if ($endereco !== '') { ?>
+                                            <span class="text-muted" title="<?php echo htmlspecialchars($endereco); ?>">
+                                                <i class="ti ti-map-pin me-1"></i><?php echo htmlspecialchars(mb_strimwidth($endereco, 0, 35, '...')); ?>
+                                            </span>
+                                        <?php } elseif ($contato !== '') { ?>
+                                            <span class="text-muted">
+                                                <i class="ti ti-phone me-1"></i><?php echo htmlspecialchars($contato); ?>
+                                            </span>
+                                        <?php } ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php } ?>
+                    </div>
+                </div>
+                <?php if ($countAll > count($agendamentos)) { ?>
+                    <div class="card-footer text-center border-top" style="padding: 0.75rem;">
+                        <a href="<?php echo htmlspecialchars($meusUrl); ?>" class="text-muted text-decoration-none" style="font-size: 0.85rem;">
+                            <?php echo sprintf(__('Ver todos os %d agendamentos pendentes', 'agendamento'), $countAll); ?>
+                            <i class="ti ti-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                <?php } ?>
+            <?php } ?>
+        </div>
+        </td></tr>
+        <?php
     }
 }
