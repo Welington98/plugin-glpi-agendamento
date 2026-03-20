@@ -28,6 +28,7 @@
         const modalCsrfInput = modalElement.querySelector("input[name='_glpi_csrf_token']");
 
         let ticketCalendar = null;
+        let selectedRange = null;
 
         const escapeHtml = (value) => String(value ?? '')
             .replaceAll('&', '&amp;')
@@ -104,7 +105,85 @@
             return Math.min(Math.max(duration, 15), 480);
         };
 
+        const formatTimeKey = (value) => {
+            const date = value instanceof Date ? value : new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return '';
+            }
+
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}:00`;
+        };
+
+        const getSlotRows = () => Array.from(calendarElement?.querySelectorAll('.fc-slats tr[data-time]') || []);
+
+        const getPixelsPerMinute = (slotRows) => {
+            if (!Array.isArray(slotRows) || slotRows.length < 2) {
+                return 0;
+            }
+
+            const firstRow = slotRows[0];
+            const secondRow = slotRows[1];
+            const firstTime = firstRow.getAttribute('data-time') || '00:00:00';
+            const secondTime = secondRow.getAttribute('data-time') || '00:30:00';
+            const [firstHour, firstMinute] = firstTime.split(':').map((part) => Number.parseInt(part, 10));
+            const [secondHour, secondMinute] = secondTime.split(':').map((part) => Number.parseInt(part, 10));
+            const firstMinutes = (firstHour * 60) + firstMinute;
+            const secondMinutes = (secondHour * 60) + secondMinute;
+            const diffMinutes = Math.max(secondMinutes - firstMinutes, 1);
+            const firstRect = firstRow.getBoundingClientRect();
+            const secondRect = secondRow.getBoundingClientRect();
+            return (secondRect.top - firstRect.top) / diffMinutes;
+        };
+
+        const removeSelectedMarker = () => {
+            calendarElement?.querySelectorAll('.plugin-agendamento-selected-slot-marker').forEach((marker) => marker.remove());
+        };
+
+        const renderSelectedMarker = () => {
+            if (!calendarElement || !selectedRange) {
+                return;
+            }
+
+            removeSelectedMarker();
+
+            const timeGrid = calendarElement.querySelector('.fc-time-grid');
+            const dayKey = formatDateForInput(selectedRange.start);
+            const dayCell = Array.from(calendarElement.querySelectorAll('.fc-bg .fc-day'))
+                .find((cell) => cell.getAttribute('data-date') === dayKey);
+            const slotRows = getSlotRows();
+            const startRow = slotRows.find((row) => row.getAttribute('data-time') === formatTimeKey(selectedRange.start));
+
+            if (!timeGrid || !dayCell || !startRow) {
+                return;
+            }
+
+            const timeGridRect = timeGrid.getBoundingClientRect();
+            const dayCellRect = dayCell.getBoundingClientRect();
+            const startRowRect = startRow.getBoundingClientRect();
+            const startMinutes = (selectedRange.start.getHours() * 60) + selectedRange.start.getMinutes();
+            const endMinutes = (selectedRange.end.getHours() * 60) + selectedRange.end.getMinutes();
+            const pixelsPerMinute = getPixelsPerMinute(slotRows);
+            const durationMinutes = Math.max(endMinutes - startMinutes, getDurationMinutes());
+            const top = startRowRect.top - timeGridRect.top;
+            const left = dayCellRect.left - timeGridRect.left;
+            const width = dayCellRect.width;
+            const height = Math.max(durationMinutes * pixelsPerMinute, startRowRect.height || 24);
+
+            const marker = document.createElement('div');
+            marker.className = 'plugin-agendamento-selected-slot-marker';
+            marker.style.top = `${top}px`;
+            marker.style.left = `${left}px`;
+            marker.style.width = `${width}px`;
+            marker.style.height = `${height}px`;
+
+            timeGrid.appendChild(marker);
+        };
+
         const updateSelectedPeriod = (start, end) => {
+            selectedRange = { start, end };
+
             if (startInput) {
                 startInput.value = formatDateTimeLocal(start);
             }
@@ -121,6 +200,8 @@
             if (selectionHint) {
                 selectionHint.textContent = 'Horario selecionado na agenda visual.';
             }
+
+            renderSelectedMarker();
         };
 
         const renderMessage = (message, type = 'info') => {
@@ -131,6 +212,17 @@
         const clearMessage = () => {
             resultsContainer.hidden = true;
             resultsContainer.innerHTML = '';
+        };
+
+        const clearSelectedPeriod = () => {
+            selectedRange = null;
+
+            if (selectionBadge) {
+                selectionBadge.hidden = true;
+                selectionBadge.textContent = '';
+            }
+
+            removeSelectedMarker();
         };
 
         const getCalendarLocale = () => {
@@ -245,6 +337,7 @@
                     if (dateInput && currentDate instanceof Date && !Number.isNaN(currentDate.getTime())) {
                         dateInput.value = formatDateForInput(currentDate);
                     }
+                    window.requestAnimationFrame(renderSelectedMarker);
                 },
             });
 
@@ -286,6 +379,7 @@
             renderMessage(config.texts?.selectionHint || 'Clique em um horário livre na agenda para preencher o agendamento.', 'info');
             calendar.gotoDate(date);
             calendar.refetchEvents();
+            window.requestAnimationFrame(renderSelectedMarker);
         };
 
         document.querySelectorAll(triggerSelector).forEach((button) => {
@@ -304,11 +398,8 @@
             if (!target) {
                 return;
             }
-            if (startInput) {
-                startInput.value = target.dataset.start || '';
-            }
-            if (endInput) {
-                endInput.value = target.dataset.end || '';
+            if (target.dataset.start && target.dataset.end) {
+                updateSelectedPeriod(new Date(target.dataset.start), new Date(target.dataset.end));
             }
         });
 
@@ -364,10 +455,7 @@
 
         if (technicianInput) {
             technicianInput.addEventListener('change', () => {
-                if (selectionBadge) {
-                    selectionBadge.hidden = true;
-                    selectionBadge.textContent = '';
-                }
+                clearSelectedPeriod();
                 if (startInput) {
                     startInput.value = '';
                 }

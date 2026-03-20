@@ -259,6 +259,28 @@ form > .dropdown-footer {
     background: rgba(32, 107, 196, 0.18) !important;
 }
 
+.plugin-agendamento-ticket-calendar .fc-time-grid {
+    position: relative;
+}
+
+.plugin-agendamento-selected-slot-marker {
+    position: absolute;
+    z-index: 3;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(32, 107, 196, 0.3), rgba(32, 107, 196, 0.18));
+    border: 2px solid rgba(24, 75, 136, 0.55);
+    border-radius: 0.5rem;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+.plugin-agendamento-selected-slot-marker::after {
+    content: '';
+    position: absolute;
+    inset: 0.2rem;
+    border: 1px dashed rgba(24, 75, 136, 0.7);
+    border-radius: 0.35rem;
+}
+
 .plugin-agendamento-ticket-calendar .fc-axis,
 .plugin-agendamento-ticket-calendar .fc-time-grid-axis-cushion,
 .plugin-agendamento-ticket-calendar .fc-day-header,
