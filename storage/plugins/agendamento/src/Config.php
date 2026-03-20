@@ -41,7 +41,7 @@ class Config extends CommonDBTM
     public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
     {
         if (!$withtemplate && $item->getType() === 'Config') {
-            return self::getTypeName();
+            return self::createTabEntry(self::getTypeName(), 0, null, 'ti ti-calendar-event');
         }
         return '';
     }

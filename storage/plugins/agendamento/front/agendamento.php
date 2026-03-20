@@ -7,7 +7,7 @@ include '../../../inc/includes.php';
 Session::checkLoginUser();
 Html::requireJs('fullcalendar');
 
-if (!Session::haveRight('ticket', READ)) {
+if (!Session::haveRight('plugin_agendamento', READ)) {
     Html::displayRightError();
     exit;
 }
@@ -16,9 +16,24 @@ $anchorDate = isset($_GET['date']) ? trim((string) $_GET['date']) : '';
 $view = isset($_GET['view']) ? trim((string) $_GET['view']) : 'week';
 
 if (isset($_POST['save_agendamento'])) {
+    if (!Session::haveRight('plugin_agendamento', CREATE) && !Session::haveRight('plugin_agendamento', UPDATE)) {
+        Html::displayRightError();
+        exit;
+    }
+
     $redirectDate = trim((string) ($_POST['date'] ?? $anchorDate));
     $redirectView = trim((string) ($_POST['view'] ?? $view));
     $action = trim((string) ($_POST['agendamento_action'] ?? 'create'));
+
+    if ($action === 'edit' && !Session::haveRight('plugin_agendamento', UPDATE)) {
+        Html::displayRightError();
+        exit;
+    }
+
+    if ($action !== 'edit' && !Session::haveRight('plugin_agendamento', CREATE)) {
+        Html::displayRightError();
+        exit;
+    }
 
     try {
         if ($action === 'edit') {
@@ -36,6 +51,11 @@ if (isset($_POST['save_agendamento'])) {
 }
 
 if (isset($_POST['update_agendamento_status'])) {
+    if (!Session::haveRight('plugin_agendamento', UPDATE)) {
+        Html::displayRightError();
+        exit;
+    }
+
     $redirectDate = trim((string) ($_POST['date'] ?? $anchorDate));
     $redirectView = trim((string) ($_POST['view'] ?? $view));
 

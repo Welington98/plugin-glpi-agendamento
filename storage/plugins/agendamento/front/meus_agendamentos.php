@@ -6,7 +6,7 @@ include '../../../inc/includes.php';
 
 Session::checkLoginUser();
 
-if (!Session::haveRight('ticket', READ)) {
+if (!Session::haveRight('plugin_agendamento', READ)) {
     Html::displayRightError();
     exit;
 }

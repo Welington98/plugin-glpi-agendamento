@@ -6,6 +6,7 @@ use DBConnection;
 use DateInterval;
 use DateTimeImmutable;
 use Dropdown;
+use Html;
 use Session;
 use Ticket as GlpiTicket;
 use User;
@@ -38,8 +39,39 @@ class Agendamento
         $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
         $baseUrl = $rootDoc . '/plugins/agendamento/front/agendamento.php';
         $pluginConfig = Config::getConfig();
+        $canCreate = Session::haveRight('plugin_agendamento', CREATE);
+        $canUpdate = Session::haveRight('plugin_agendamento', UPDATE);
+
+        $viewMode = isset($_GET['mode']) ? trim((string) $_GET['mode']) : 'calendar';
+        if (!in_array($viewMode, ['list', 'calendar'], true)) {
+            $viewMode = 'calendar';
+        }
+        $statusFilter = isset($_GET['status']) ? trim((string) $_GET['status']) : '';
+        $filterTechId = isset($_GET['tech_id']) ? (int) $_GET['tech_id'] : 0;
+        $requestedTicketId = isset($_GET['ticket_id']) ? (int) $_GET['ticket_id'] : 0;
+        $autoOpenCreateModal = $canCreate
+            && isset($_GET['open_create'])
+            && (int) $_GET['open_create'] === 1
+            && $requestedTicketId > 0;
+
+        $buildOverviewUrl = static function (array $extra = []) use ($baseUrl): string {
+            $params = array_filter($extra, fn($v) => $v !== '' && $v !== 0 && $v !== '0');
+            return $baseUrl . ($params !== [] ? '?' . http_build_query($params) : '');
+        };
+
+        $allAgendamentos = self::getAllAgendamentos('', $filterTechId > 0 ? $filterTechId : null, 500);
+        $counts = ['total' => 0, self::STATUS_AGENDADO => 0, self::STATUS_CONFIRMADO => 0, self::STATUS_CANCELADO => 0, self::STATUS_REALIZADO => 0];
+        foreach ($allAgendamentos as $ag) {
+            $s = self::normalizeStatus((string) ($ag['status'] ?? ''));
+            $counts['total']++;
+            if (isset($counts[$s])) {
+                $counts[$s]++;
+            }
+        }
+        $listAgendamentos = self::getAllAgendamentos($statusFilter, $filterTechId > 0 ? $filterTechId : null, 200);
+
         $calendarConfig = [
-            'eventsUrl' => $rootDoc . '/plugins/agendamento/front/agendamento_calendar.php?action=events',
+            'eventsUrl' => $rootDoc . '/plugins/agendamento/front/agendamento_calendar.php?action=events' . ($filterTechId > 0 ? '&tech_id=' . $filterTechId : ''),
             'actionsUrl' => $rootDoc . '/plugins/agendamento/front/agendamento_calendar.php',
             'pageUrl' => $baseUrl,
             'initialDate' => $currentDate,
@@ -68,7 +100,9 @@ class Agendamento
                 'noTask' => __('Sem TicketTask vinculada.', 'agendamento'),
             ],
         ];
-        $selectedTicket = isset($_POST['agendamento_tickets_id']) ? (string) $_POST['agendamento_tickets_id'] : '';
+        $selectedTicket = isset($_POST['agendamento_tickets_id'])
+            ? (string) $_POST['agendamento_tickets_id']
+            : ($requestedTicketId > 0 ? (string) $requestedTicketId : '');
         $selectedTechnician = isset($_POST['agendamento_users_id_tech']) ? (string) $_POST['agendamento_users_id_tech'] : '';
         $selectedStatus = isset($_POST['agendamento_status']) ? (string) $_POST['agendamento_status'] : self::STATUS_AGENDADO;
         $notes = isset($_POST['agendamento_observacoes']) ? (string) $_POST['agendamento_observacoes'] : '';
@@ -84,23 +118,115 @@ class Agendamento
         
         <!-- Page Header -->
         <div class="card mb-3">
-            <div class="card-header d-flex align-items-center justify-content-between">
+            <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <h3 class="card-title mb-0">
                     <i class="ti ti-calendar-event me-2"></i>
                     <?php echo htmlescape(__('GLPI Agenda', 'agendamento')); ?>
                 </h3>
-                <a href="<?php echo htmlescape($rootDoc . '/plugins/agendamento/front/meus_agendamentos.php'); ?>" class="btn btn-sm btn-outline-primary">
-                    <i class="ti ti-calendar-user me-1"></i><?php echo htmlescape(__('Meus Agendamentos', 'agendamento')); ?>
-                </a>
+                <div class="d-flex gap-2">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="<?php echo htmlescape($buildOverviewUrl(['mode' => 'list', 'status' => $statusFilter, 'tech_id' => $filterTechId])); ?>" class="btn <?php echo $viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'; ?>">
+                            <i class="ti ti-list me-1"></i><?php echo htmlescape(__('Lista', 'agendamento')); ?>
+                        </a>
+                        <a href="<?php echo htmlescape($buildOverviewUrl(['mode' => 'calendar'])); ?>" class="btn <?php echo $viewMode === 'calendar' ? 'btn-primary' : 'btn-outline-primary'; ?>">
+                            <i class="ti ti-calendar me-1"></i><?php echo htmlescape(__('Calendário', 'agendamento')); ?>
+                        </a>
+                    </div>
+                    <a href="<?php echo htmlescape($rootDoc . '/plugins/agendamento/front/meus_agendamentos.php'); ?>" class="btn btn-sm btn-outline-primary">
+                        <i class="ti ti-calendar-user me-1"></i><?php echo htmlescape(__('Meus Agendamentos', 'agendamento')); ?>
+                    </a>
+                </div>
             </div>
         </div>
+
+        <?php if ($viewMode === 'list') { ?>
+            <div class="row g-3 mb-3">
+                <?php
+                $badges = [
+                    '' => ['label' => __('Todos', 'agendamento'), 'count' => $counts['total'], 'color' => 'primary'],
+                    self::STATUS_AGENDADO => ['label' => __('Agendados', 'agendamento'), 'count' => $counts[self::STATUS_AGENDADO], 'color' => 'info'],
+                    self::STATUS_CONFIRMADO => ['label' => __('Confirmados', 'agendamento'), 'count' => $counts[self::STATUS_CONFIRMADO], 'color' => 'success'],
+                    self::STATUS_REALIZADO => ['label' => __('Realizados', 'agendamento'), 'count' => $counts[self::STATUS_REALIZADO], 'color' => 'secondary'],
+                    self::STATUS_CANCELADO => ['label' => __('Cancelados', 'agendamento'), 'count' => $counts[self::STATUS_CANCELADO], 'color' => 'danger'],
+                ];
+                foreach ($badges as $filterKey => $badge) {
+                    $active = $statusFilter === $filterKey ? ' active' : '';
+                    $badgeParams = ['mode' => 'list'];
+                    if ($filterKey !== '') {
+                        $badgeParams['status'] = $filterKey;
+                    }
+                    if ($filterTechId > 0) {
+                        $badgeParams['tech_id'] = $filterTechId;
+                    }
+                    echo "<div class='col-auto'>";
+                    echo "<a href='" . htmlescape($buildOverviewUrl($badgeParams)) . "' class='btn btn-outline-" . $badge['color'] . $active . "'>";
+                    echo htmlescape($badge['label']) . " <span class='badge bg-" . $badge['color'] . " ms-1'>" . $badge['count'] . "</span>";
+                    echo "</a></div>";
+                }
+                ?>
+            </div>
+
+            <?php if ($listAgendamentos === []) { ?>
+                <div class="alert alert-info">
+                    <i class="ti ti-info-circle me-1"></i>
+                    <?php echo htmlescape(__('Nenhum agendamento encontrado.', 'agendamento')); ?>
+                </div>
+            <?php } else { ?>
+                <div class="card">
+                    <div class="table-responsive">
+                        <table class="table table-vcenter table-hover card-table">
+                            <thead>
+                                <tr>
+                                    <th><?php echo htmlescape(__('Chamado', 'agendamento')); ?></th>
+                                    <th><?php echo htmlescape(__('Título', 'agendamento')); ?></th>
+                                    <th><?php echo htmlescape(__('Técnico', 'agendamento')); ?></th>
+                                    <th><?php echo htmlescape(__('Início', 'agendamento')); ?></th>
+                                    <th><?php echo htmlescape(__('Fim', 'agendamento')); ?></th>
+                                    <th><?php echo htmlescape(__('Status', 'agendamento')); ?></th>
+                                    <th><?php echo htmlescape(__('Contato', 'agendamento')); ?></th>
+                                    <th><?php echo htmlescape(__('Observações', 'agendamento')); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($listAgendamentos as $ag) {
+                                    $ticketId = (int) ($ag['ticket_id'] ?? $ag['tickets_id'] ?? 0);
+                                    $status = self::normalizeStatus((string) ($ag['status'] ?? ''));
+                                    $palette = self::getStatusPalette($status);
+                                    $startAt = strtotime((string) ($ag['data_hora_inicio'] ?? ''));
+                                    $endAt = strtotime((string) ($ag['data_hora_fim'] ?? ''));
+                                ?>
+                                <tr>
+                                    <td>
+                                        <a href="<?php echo htmlescape($rootDoc . '/front/ticket.form.php?id=' . $ticketId); ?>">
+                                            #<?php echo $ticketId; ?>
+                                        </a>
+                                    </td>
+                                    <td><?php echo htmlescape((string) ($ag['ticket_name'] ?? __('Sem título', 'agendamento'))); ?></td>
+                                    <td><?php echo htmlescape(trim((string) ($ag['tecnico_nome'] ?? '')) ?: '-'); ?></td>
+                                    <td><?php echo $startAt !== false ? date('d/m/Y H:i', $startAt) : '-'; ?></td>
+                                    <td><?php echo $endAt !== false ? date('d/m/Y H:i', $endAt) : '-'; ?></td>
+                                    <td>
+                                        <span class="badge" style="background-color:<?php echo htmlescape($palette['background']); ?>;color:<?php echo htmlescape($palette['text']); ?>;border:1px solid <?php echo htmlescape($palette['border']); ?>">
+                                            <?php echo htmlescape(self::getStatusLabel($status)); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo htmlescape(trim((string) ($ag['contato_cliente'] ?? '')) ?: '-'); ?></td>
+                                    <td><?php echo htmlescape(mb_strimwidth(trim((string) ($ag['observacoes'] ?? '')), 0, 60, '...') ?: '-'); ?></td>
+                                </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php } ?>
+        <?php } else { ?>
 
         <div class="row g-3">
             <!-- Sidebar -->
             <div class="col-12 col-lg-3">
                 <div class="card">
                     <div class="card-body d-flex flex-column gap-3">
-                        <button type="button" class="btn btn-warning w-100 fw-bold" data-open-modal="plugin-agendamento-create-modal">
+                        <button type="button" class="btn btn-warning w-100 fw-bold" data-open-modal="plugin-agendamento-create-modal"<?php echo $canCreate ? '' : ' disabled'; ?>>
                             <i class="ti ti-plus me-1"></i>
                             <?php echo htmlescape(__('Novo Agendamento', 'agendamento')); ?>
                         </button>
@@ -250,7 +376,7 @@ class Agendamento
                         </div>
                         <div class="modal-footer border-top-0 pt-0">
                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?php echo htmlescape(__('Cancelar', 'agendamento')); ?></button>
-                            <button type="submit" name="save_agendamento" value="1" id="plugin-agendamento-form-submit" class="btn btn-primary"<?php echo $tecnicosOptions === [] ? ' disabled' : ''; ?>>
+                            <button type="submit" name="save_agendamento" value="1" id="plugin-agendamento-form-submit" class="btn btn-primary"<?php echo ($tecnicosOptions === [] || (($formAction === 'edit') ? !$canUpdate : !$canCreate)) ? ' disabled' : ''; ?>>
                                 <i class="ti ti-device-floppy me-1"></i>
                                 <?php echo htmlescape(__('Salvar Alterações', 'agendamento')); ?>
                             </button>
@@ -324,21 +450,25 @@ class Agendamento
                         <!-- Main Actions -->
                         <div class="d-flex justify-content-between w-100" id="plugin-agendamento-detail-main-actions">
                             <div class="d-flex gap-2">
+                                <?php if ($canUpdate) { ?>
                                 <button type="button" id="plugin-agendamento-edit-button" class="btn btn-outline-primary" title="<?php echo htmlescape(__('Editar', 'agendamento')); ?>">
                                     <i class="ti ti-pencil"></i>
                                 </button>
                                 <button type="button" id="plugin-agendamento-cancel-toggle" class="btn btn-outline-danger" title="<?php echo htmlescape(__('Cancelar', 'agendamento')); ?>">
                                     <i class="ti ti-ban"></i>
                                 </button>
+                                <?php } ?>
                             </div>
 
                             <div class="d-flex gap-2">
+                                <?php if ($canUpdate) { ?>
                                 <button type="submit" name="update_agendamento_status" value="confirmado" class="btn btn-outline-success">
                                     <i class="ti ti-check me-1"></i><?php echo htmlescape(__('Confirmar', 'agendamento')); ?>
                                 </button>
                                 <button type="submit" name="update_agendamento_status" value="realizado" class="btn btn-dark">
                                     <i class="ti ti-checks me-1"></i><?php echo htmlescape(__('Concluir', 'agendamento')); ?>
                                 </button>
+                                <?php } ?>
                                 <a id="plugin-agendamento-detail-ticket-link" href="#" class="btn btn-light border" target="_blank" title="<?php echo htmlescape(__('Abrir Chamado', 'agendamento')); ?>">
                                     <i class="ti ti-external-link"></i>
                                 </a>
@@ -354,7 +484,16 @@ class Agendamento
         if ($inlineScript !== false && trim($inlineScript) !== '') {
             echo "<script>\n" . $inlineScript . "\n</script>";
         }
+        if ($autoOpenCreateModal) {
+            echo "<script>document.addEventListener('DOMContentLoaded', function () {";
+            echo "const modalElement = document.getElementById('plugin-agendamento-create-modal');";
+            echo "if (!modalElement || typeof bootstrap === 'undefined') { return; }";
+            echo "const modal = bootstrap.Modal.getOrCreateInstance(modalElement);";
+            echo "modal.show();";
+            echo "});</script>";
+        }
         ?>
+        <?php } ?>
         <?php
     }
 
@@ -669,6 +808,317 @@ class Agendamento
             $rows[] = $row;
         }
         return $rows;
+    }
+
+    public static function getAllAgendamentos(string $statusFilter = '', ?int $techId = null, int $limit = 100): array
+    {
+        global $DB;
+
+        self::ensureTableExists();
+
+        $where = [];
+        if ($statusFilter !== '' && in_array($statusFilter, [self::STATUS_AGENDADO, self::STATUS_CONFIRMADO, self::STATUS_CANCELADO, self::STATUS_REALIZADO], true)) {
+            $where[self::TABLE . '.status'] = $statusFilter;
+        }
+        if ($techId !== null && $techId > 0) {
+            $where[self::TABLE . '.users_id_tech'] = $techId;
+        }
+
+        $iterator = $DB->request([
+            'SELECT' => [
+                self::TABLE . '.*',
+                'glpi_tickets.id AS ticket_id',
+                'glpi_tickets.name AS ticket_name',
+            ],
+            'FROM' => self::TABLE,
+            'LEFT JOIN' => [
+                'glpi_tickets' => [
+                    'ON' => [
+                        self::TABLE => 'tickets_id',
+                        'glpi_tickets' => 'id',
+                    ],
+                ],
+            ],
+            'WHERE' => $where,
+            'ORDER' => [self::TABLE . '.data_hora_inicio DESC'],
+            'LIMIT' => $limit,
+        ]);
+
+        $rows = [];
+        foreach ($iterator as $row) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    public static function getTicketMetadata(int $ticketId): array
+    {
+        if ($ticketId <= 0) {
+            return [
+                'contact' => '',
+                'address' => '',
+            ];
+        }
+
+        $ticket = new GlpiTicket();
+        if (!$ticket->getFromDB($ticketId)) {
+            return [
+                'contact' => '',
+                'address' => '',
+            ];
+        }
+
+        $requesters = $ticket->getUsers(1);
+        $contact = '';
+        $address = '';
+
+        if (!empty($requesters)) {
+            $firstRequester = reset($requesters);
+            $userId = (int) ($firstRequester['users_id'] ?? 0);
+
+            if ($userId > 0) {
+                $user = new User();
+                if ($user->getFromDB($userId)) {
+                    $contact = trim((string) ($user->fields['mobile'] ?? ''));
+                    if ($contact === '') {
+                        $contact = trim((string) ($user->fields['phone'] ?? ''));
+                    }
+                    if ($contact === '') {
+                        $contact = trim((string) ($user->fields['phone2'] ?? ''));
+                    }
+
+                    $addressParts = [];
+                    foreach (['address', 'town', 'state', 'country'] as $field) {
+                        if (!empty($user->fields[$field])) {
+                            $addressParts[] = $user->fields[$field];
+                        }
+                    }
+                    $address = implode(', ', $addressParts);
+                }
+            }
+        }
+
+        return [
+            'contact' => $contact,
+            'address' => $address,
+        ];
+    }
+
+    public static function findAvailableSlots(int $technicianId, string $date, int $durationMinutes = 60, int $limit = 5): array
+    {
+        if ($technicianId <= 0) {
+            throw new \RuntimeException(__('Selecione um técnico para buscar horários.', 'agendamento'));
+        }
+
+        $timestamp = strtotime($date);
+        if ($timestamp === false) {
+            throw new \RuntimeException(__('Data inválida para busca de horários.', 'agendamento'));
+        }
+
+        $durationMinutes = max(15, min(480, $durationMinutes));
+        $config = Config::getConfig();
+        $slotStepMinutes = self::timeStringToMinutes((string) ($config['slot_duration'] ?? '00:30:00'));
+        if ($slotStepMinutes <= 0) {
+            $slotStepMinutes = 30;
+        }
+
+        $day = date('Y-m-d', $timestamp);
+        $dayStart = strtotime($day . ' ' . (string) ($config['slot_min_time'] ?? '07:00') . ':00');
+        $dayEnd = strtotime($day . ' ' . (string) ($config['slot_max_time'] ?? '21:00') . ':00');
+        if ($dayStart === false || $dayEnd === false || $dayEnd <= $dayStart) {
+            throw new \RuntimeException(__('Configuração de expediente inválida.', 'agendamento'));
+        }
+
+        $now = time();
+        if ($day === date('Y-m-d')) {
+            $nextStep = (int) (ceil($now / ($slotStepMinutes * 60)) * ($slotStepMinutes * 60));
+            $dayStart = max($dayStart, $nextStep);
+        }
+
+        $busyIntervals = [];
+        foreach (self::getForPeriod(date('Y-m-d H:i:s', strtotime($day . ' 00:00:00')), date('Y-m-d H:i:s', strtotime($day . ' +1 day 00:00:00')), $technicianId) as $agendamento) {
+            $status = self::normalizeStatus((string) ($agendamento['status'] ?? ''));
+            if ($status === self::STATUS_CANCELADO) {
+                continue;
+            }
+
+            $start = strtotime((string) ($agendamento['data_hora_inicio'] ?? ''));
+            $end = strtotime((string) ($agendamento['data_hora_fim'] ?? ''));
+            if ($start === false) {
+                continue;
+            }
+            if ($end === false || $end <= $start) {
+                $end = $start + ($durationMinutes * 60);
+            }
+
+            $busyIntervals[] = [
+                'start' => max($start, $dayStart),
+                'end' => min($end, $dayEnd),
+            ];
+        }
+
+        usort($busyIntervals, static fn(array $left, array $right): int => $left['start'] <=> $right['start']);
+
+        $merged = [];
+        foreach ($busyIntervals as $interval) {
+            if ($interval['end'] <= $interval['start']) {
+                continue;
+            }
+
+            if ($merged === []) {
+                $merged[] = $interval;
+                continue;
+            }
+
+            $lastIndex = count($merged) - 1;
+            if ($interval['start'] <= $merged[$lastIndex]['end']) {
+                $merged[$lastIndex]['end'] = max($merged[$lastIndex]['end'], $interval['end']);
+                continue;
+            }
+
+            $merged[] = $interval;
+        }
+
+        $slots = [];
+        $cursor = $dayStart;
+        foreach ($merged as $interval) {
+            while (($cursor + ($durationMinutes * 60)) <= $interval['start']) {
+                $slots[] = self::formatAvailableSlot($cursor, $durationMinutes);
+                if (count($slots) >= $limit) {
+                    return $slots;
+                }
+                $cursor += $slotStepMinutes * 60;
+            }
+            $cursor = max($cursor, $interval['end']);
+        }
+
+        while (($cursor + ($durationMinutes * 60)) <= $dayEnd) {
+            $slots[] = self::formatAvailableSlot($cursor, $durationMinutes);
+            if (count($slots) >= $limit) {
+                break;
+            }
+            $cursor += $slotStepMinutes * 60;
+        }
+
+        return $slots;
+    }
+
+    public static function renderTicketCreateModal(GlpiTicket $ticket): void
+    {
+        global $CFG_GLPI;
+
+        $ticketId = (int) $ticket->getID();
+        if ($ticketId <= 0) {
+            return;
+        }
+
+        $pluginConfig = Config::getConfig();
+        $defaultDateTime = self::getDefaultDateTimeValues();
+        $metadata = self::getTicketMetadata($ticketId);
+        $ticketName = trim((string) ($ticket->fields['name'] ?? ''));
+        $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
+
+        echo "<div class='modal fade' id='plugin-agendamento-ticket-modal' tabindex='-1' aria-hidden='true'>";
+        echo "<div class='modal-dialog modal-dialog-centered modal-lg'>";
+        echo "<div class='modal-content'>";
+        echo "<div class='modal-header'>";
+        echo "<h5 class='modal-title'><i class='ti ti-calendar-plus me-2'></i>" . htmlescape(__('Criar agendamento', 'agendamento')) . "</h5>";
+        echo "<button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>";
+        echo "</div>";
+        echo "<form method='post' action='" . htmlescape($rootDoc . '/plugins/agendamento/front/ticket_agendamento.form.php') . "'>";
+        echo "<div class='modal-body'>";
+        echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
+        echo Html::hidden('agendamento_tickets_id', ['value' => $ticketId]);
+        echo Html::hidden('ticket_redirect_id', ['value' => $ticketId]);
+
+        echo "<div class='row g-3'>";
+        echo "<div class='col-12'>";
+        echo "<label class='form-label fw-semibold'>" . htmlescape(__('Chamado', 'agendamento')) . "</label>";
+        echo "<div class='form-control-plaintext border rounded px-3 py-2 bg-light'>#" . $ticketId . ' - ' . htmlescape($ticketName !== '' ? $ticketName : __('Sem título', 'agendamento')) . "</div>";
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
+        echo "<label class='form-label required'>" . htmlescape(__('Técnico', 'agendamento')) . "</label>";
+        User::dropdown([
+            'name' => 'agendamento_users_id_tech',
+            'value' => 0,
+            'right' => 'all',
+            'width' => '100%',
+            'display_emptychoice' => true,
+            'emptylabel' => __('Selecione um técnico...', 'agendamento'),
+            'comments' => false,
+            'rand' => 4101,
+        ]);
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-ticket-duration' class='form-label'>" . htmlescape(__('Duração (minutos)', 'agendamento')) . "</label>";
+        echo "<input type='number' id='plugin-agendamento-ticket-duration' name='agendamento_duration_minutes' class='form-control' min='15' max='480' step='15' value='" . (int) ($pluginConfig['default_event_duration'] ?? 60) . "'>";
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-ticket-date' class='form-label'>" . htmlescape(__('Encontrar horário em', 'agendamento')) . "</label>";
+        echo "<input type='date' id='plugin-agendamento-ticket-date' class='form-control' value='" . htmlescape(date('Y-m-d')) . "'>";
+        echo "</div>";
+
+        echo "<div class='col-md-6 d-flex align-items-end'>";
+        echo "<button type='button' class='btn btn-outline-primary w-100' id='plugin-agendamento-find-slots' data-actions-url='" . htmlescape($rootDoc . '/plugins/agendamento/front/agendamento_calendar.php') . "'>";
+        echo "<i class='ti ti-calendar-search me-1'></i>" . htmlescape(__('Encontrar horário disponível', 'agendamento'));
+        echo "</button>";
+        echo "</div>";
+
+        echo "<div class='col-12'>";
+        echo "<div id='plugin-agendamento-slot-results' class='plugin-agendamento-slot-results' hidden></div>";
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-ticket-start' class='form-label required'>" . htmlescape(__('Data Início', 'agendamento')) . "</label>";
+        echo "<input type='datetime-local' id='plugin-agendamento-ticket-start' name='agendamento_data_hora_inicio' class='form-control' required value='" . htmlescape($defaultDateTime['start']) . "'>";
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-ticket-end' class='form-label'>" . htmlescape(__('Data Fim Prevista', 'agendamento')) . "</label>";
+        echo "<input type='datetime-local' id='plugin-agendamento-ticket-end' name='agendamento_data_hora_fim' class='form-control' value='" . htmlescape($defaultDateTime['end']) . "'>";
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-ticket-contact' class='form-label'>" . htmlescape(__('Contato do Cliente', 'agendamento')) . "</label>";
+        echo "<input type='text' id='plugin-agendamento-ticket-contact' name='agendamento_contato_cliente' class='form-control' value='" . htmlescape($metadata['contact']) . "'>";
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-ticket-status' class='form-label'>" . htmlescape(__('Status', 'agendamento')) . "</label>";
+        echo "<select id='plugin-agendamento-ticket-status' name='agendamento_status' class='form-select'>";
+        foreach (self::getStatusOptions() as $statusKey => $statusLabel) {
+            $selected = $statusKey === self::STATUS_AGENDADO ? ' selected' : '';
+            echo "<option value='" . htmlescape($statusKey) . "'" . $selected . ">" . htmlescape($statusLabel) . "</option>";
+        }
+        echo "</select>";
+        echo "</div>";
+
+        echo "<div class='col-12'>";
+        echo "<label for='plugin-agendamento-ticket-address' class='form-label'>" . htmlescape(__('Endereço do Cliente', 'agendamento')) . "</label>";
+        echo "<textarea id='plugin-agendamento-ticket-address' name='agendamento_endereco_cliente' class='form-control' rows='2'>" . htmlescape($metadata['address']) . "</textarea>";
+        echo "</div>";
+
+        echo "<div class='col-12'>";
+        echo "<label for='plugin-agendamento-ticket-notes' class='form-label'>" . htmlescape(__('Observações', 'agendamento')) . "</label>";
+        echo "<input type='text' id='plugin-agendamento-ticket-notes' name='agendamento_observacoes' class='form-control' value=''>";
+        echo "</div>";
+        echo "</div>";
+        echo "</div>";
+
+        echo "<div class='modal-footer'>";
+        echo "<button type='button' class='btn btn-outline-secondary' data-bs-dismiss='modal'>" . htmlescape(__('Cancelar', 'agendamento')) . "</button>";
+        echo "<button type='submit' name='save_agendamento' value='1' class='btn btn-primary'>";
+        echo "<i class='ti ti-device-floppy me-1'></i>" . htmlescape(__('Salvar agendamento', 'agendamento'));
+        echo "</button>";
+        echo "</div>";
+        echo "</form>";
+        echo "</div>";
+        echo "</div>";
+        echo "</div>";
+        echo Html::scriptBlock("if (typeof window.pluginAgendamentoBindTicketModal === 'function') { window.pluginAgendamentoBindTicketModal(); setTimeout(window.pluginAgendamentoBindTicketModal, 0); setTimeout(window.pluginAgendamentoBindTicketModal, 250); }");
     }
 
     public static function showMeusAgendamentos(): void
@@ -1409,6 +1859,27 @@ class Agendamento
     private static function buildPageUrl(string $baseUrl, string $date, string $view): string
     {
         return $baseUrl . '?date=' . rawurlencode($date) . '&view=' . rawurlencode($view);
+    }
+
+    private static function timeStringToMinutes(string $value): int
+    {
+        $parts = explode(':', $value);
+        if (count($parts) < 2) {
+            return 0;
+        }
+
+        return ((int) $parts[0] * 60) + (int) $parts[1];
+    }
+
+    private static function formatAvailableSlot(int $startTimestamp, int $durationMinutes): array
+    {
+        $endTimestamp = $startTimestamp + ($durationMinutes * 60);
+
+        return [
+            'start' => date('Y-m-d\TH:i', $startTimestamp),
+            'end' => date('Y-m-d\TH:i', $endTimestamp),
+            'label' => date('d/m/Y H:i', $startTimestamp) . ' - ' . date('H:i', $endTimestamp),
+        ];
     }
 
     private static function normalizeStatus(string $status): string

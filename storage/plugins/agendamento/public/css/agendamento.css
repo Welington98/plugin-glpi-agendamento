@@ -171,3 +171,15 @@ form > .dropdown-footer {
     font-size: 0.75rem;
     margin-left: 4px;
 }
+
+.legacy-timeline-actions .plugin-agendamento-ticket-action {
+    padding: 0.55rem 0.95rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    min-height: 2.5rem;
+}
+
+.plugin-agendamento-slot-results .plugin-agendamento-slot-option {
+    min-width: 220px;
+    justify-content: flex-start;
+}

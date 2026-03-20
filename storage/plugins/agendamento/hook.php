@@ -11,6 +11,8 @@ function plugin_agendamento_install()
 
     $migration->executeMigration();
 
+    GlpiPlugin\Agendamento\Profile::installRights();
+
     return true;
 }
 
@@ -22,6 +24,8 @@ function plugin_agendamento_display_central()
 function plugin_agendamento_uninstall()
 {
     global $DB;
+
+    GlpiPlugin\Agendamento\Profile::uninstallRights();
 
     if ($DB->tableExists('glpi_plugin_agendamento_google_tokens')) {
         $DB->dropTable('glpi_plugin_agendamento_google_tokens');

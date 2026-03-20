@@ -40,23 +40,33 @@ function plugin_init_agendamento()
     global $PLUGIN_HOOKS, $DB;
 
     $PLUGIN_HOOKS['csrf_compliant']['agendamento'] = true;
-    $PLUGIN_HOOKS['add_css']['agendamento'] = ['css/agendamento.css'];
+    $PLUGIN_HOOKS['add_css']['agendamento'] = ['public/css/agendamento.css'];
+    $PLUGIN_HOOKS['add_javascript']['agendamento'] = ['public/js/agendamento-ticket.js'];
 
     Plugin::registerClass('GlpiPlugin\\Agendamento\\MenuAgendamento');
     Plugin::registerClass('GlpiPlugin\\Agendamento\\Config', ['addtabon' => 'Config']);
     Plugin::registerClass('GlpiPlugin\\Agendamento\\GoogleCalendarAuth');
     Plugin::registerClass('GlpiPlugin\\Agendamento\\GoogleCalendarSync');
+    Plugin::registerClass('GlpiPlugin\\Agendamento\\Profile', ['addtabon' => 'Profile']);
 
     if (isset($DB) && $DB->connected) {
         plugin_agendamento_check_schema();
+
+        $profileRight = new ProfileRight();
+        $hasRights = $profileRight->find(['name' => 'plugin_agendamento'], [], 1);
+        if (empty($hasRights)) {
+            \GlpiPlugin\Agendamento\Profile::installRights();
+        }
     }
 
-    if (Session::getLoginUserID() && Session::haveRight('ticket', READ)) {
+    if (Session::getLoginUserID() && Session::haveRight('plugin_agendamento', READ)) {
         $PLUGIN_HOOKS['menu_toadd']['agendamento'] = [
             'plugins' => 'GlpiPlugin\\Agendamento\\MenuAgendamento',
         ];
 
         $PLUGIN_HOOKS[Glpi\Plugin\Hooks::DISPLAY_CENTRAL]['agendamento'] = 'plugin_agendamento_display_central';
+        $PLUGIN_HOOKS[Glpi\Plugin\Hooks::TIMELINE_ACTIONS]['agendamento'] = 'plugin_agendamento_timeline_actions';
+        $PLUGIN_HOOKS[Glpi\Plugin\Hooks::POST_SHOW_ITEM]['agendamento'] = 'plugin_agendamento_post_show_item';
     }
 }
 
@@ -99,4 +109,42 @@ function plugin_agendamento_check_prerequisites()
 function plugin_agendamento_check_config()
 {
     return true;
+}
+
+function plugin_agendamento_timeline_actions(array $params): void
+{
+    if (!Session::haveRight('plugin_agendamento', CREATE)) {
+        return;
+    }
+
+    $item = $params['item'] ?? null;
+    if (!($item instanceof Ticket)) {
+        return;
+    }
+
+    $ticketId = (int) $item->getID();
+    if ($ticketId <= 0) {
+        return;
+    }
+
+    echo "<li>";
+    echo "<a class='btn btn-outline-warning answer-action plugin-agendamento-ticket-action' href='#' data-bs-toggle='modal' data-bs-target='#plugin-agendamento-ticket-modal' data-open-modal='plugin-agendamento-ticket-modal' data-ticket-id='" . $ticketId . "'>";
+    echo "<i class='ti ti-calendar-plus me-1'></i>";
+    echo "<span>" . htmlescape(__('Criar agendamento', 'agendamento')) . "</span>";
+    echo "</a>";
+    echo "</li>";
+}
+
+function plugin_agendamento_post_show_item(array $params): void
+{
+    if (!Session::haveRight('plugin_agendamento', CREATE)) {
+        return;
+    }
+
+    $item = $params['item'] ?? null;
+    if (!($item instanceof Ticket)) {
+        return;
+    }
+
+    \GlpiPlugin\Agendamento\Agendamento::renderTicketCreateModal($item);
 }
