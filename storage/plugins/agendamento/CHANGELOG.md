@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.3.0...v1.4.0) (2026-03-20)
+
+
+### Features
+
+* adicionar verificação de sessão e globalização do CFG_GLPI nos formulários ([6bf8b57](https://github.com/Welington98/plugin-glpi-agendamento/commit/6bf8b5710a960c7a1394e05497ef9b49b041be73))
+
 # [1.3.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.2.0...v1.3.0) (2026-03-20)
 
 
