@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.2.0...v1.3.0) (2026-03-20)
+
+
+### Features
+
+* adicionar motivo para reagendamento e modal de confirmação ([c0ae2ed](https://github.com/Welington98/plugin-glpi-agendamento/commit/c0ae2edca6ae6d190e30d9a1c84c0ec60bb0c025))
+
 # [1.2.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.1.0...v1.2.0) (2026-03-20)
 
 
