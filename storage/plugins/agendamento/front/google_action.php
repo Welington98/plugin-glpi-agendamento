@@ -1,9 +1,12 @@
 <?php
 
+use Glpi\Exception\RedirectException;
 use GlpiPlugin\Agendamento\GoogleCalendarAuth;
 use GlpiPlugin\Agendamento\GoogleCalendarSync;
 
 include '../../../inc/includes.php';
+
+global $CFG_GLPI;
 
 Session::checkLoginUser();
 
@@ -52,6 +55,8 @@ try {
         default:
             Html::redirect($CFG_GLPI['root_doc'] . '/plugins/agendamento/front/meus_agendamentos.php');
     }
+} catch (RedirectException $e) {
+    throw $e;
 } catch (\Throwable $e) {
     Toolbox::logInFile('agendamento', 'Google action error: ' . $e->getMessage());
     Session::addMessageAfterRedirect(

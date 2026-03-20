@@ -1,8 +1,11 @@
 <?php
 
+use Glpi\Exception\RedirectException;
 use GlpiPlugin\Agendamento\GoogleCalendarAuth;
 
 include '../../../inc/includes.php';
+
+global $CFG_GLPI;
 
 Session::checkLoginUser();
 
@@ -38,6 +41,8 @@ try {
         false,
         INFO
     );
+} catch (RedirectException $e) {
+    throw $e;
 } catch (\Throwable $e) {
     Toolbox::logInFile('agendamento', 'Google OAuth callback error: ' . $e->getMessage());
     Session::addMessageAfterRedirect(

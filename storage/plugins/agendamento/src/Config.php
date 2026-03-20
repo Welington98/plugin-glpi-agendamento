@@ -69,6 +69,8 @@ class Config extends CommonDBTM
 
     public function showConfigForm(): void
     {
+        global $CFG_GLPI;
+
         if (!Session::haveRight('config', UPDATE)) {
             return;
         }
@@ -202,7 +204,7 @@ class Config extends CommonDBTM
         echo "<table class='tab_cadre_fixe'>";
         echo "<tr class='tab_bg_2'>";
         echo "<td class='center' colspan='2'>";
-        echo "<button type='submit' name='update_config' class='btn btn-primary'><i class='ti ti-device-floppy me-1'></i>" . __('Salvar Configurações', 'agendamento') . "</button>&nbsp;";
+        echo "<button type='submit' name='update_config' value='1' class='btn btn-primary'><i class='ti ti-device-floppy me-1'></i>" . __('Salvar Configurações', 'agendamento') . "</button>&nbsp;";
 echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='btn btn-outline-secondary ms-2'><i class='ti ti-arrow-back me-1'></i>" . __('Voltar', 'agendamento') . "</a>";
         echo "</td></tr>";
         echo "</table>";

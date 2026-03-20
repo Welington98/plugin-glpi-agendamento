@@ -1575,6 +1575,7 @@ class Agendamento
         $meusUrl = $rootDoc . '/plugins/agendamento/front/meus_agendamentos.php';
         $agendaUrl = $rootDoc . '/plugins/agendamento/front/agendamento.php';
         ?>
+        <tr><td colspan="2" style="padding: 0;">
         <div class="card mb-4 shadow-sm" id="plugin-agendamento-central-widget">
             <div class="card-header border-bottom" style="padding: 1rem 1.25rem;">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -1686,6 +1687,7 @@ class Agendamento
                 <?php } ?>
             <?php } ?>
         </div>
+        </td></tr>
         <?php
     }
 }

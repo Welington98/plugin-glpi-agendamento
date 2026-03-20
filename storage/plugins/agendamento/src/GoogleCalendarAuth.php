@@ -214,27 +214,50 @@ class GoogleCalendarAuth
 
     private static function generateState(): string
     {
-        $state = bin2hex(random_bytes(32));
-        $_SESSION['glpi_plugin_agendamento_oauth_state'] = $state;
-        return $state;
+        $userId = (int) Session::getLoginUserID();
+        $timestamp = time();
+        $payload = $userId . '|' . $timestamp;
+        $key = self::getEncryptionKey();
+        $hmac = hash_hmac('sha256', $payload, $key);
+        return rtrim(strtr(base64_encode($payload . '|' . $hmac), '+/', '-_'), '=');
     }
 
     private static function validateState(string $state): void
     {
-        $expected = $_SESSION['glpi_plugin_agendamento_oauth_state'] ?? '';
-        unset($_SESSION['glpi_plugin_agendamento_oauth_state']);
+        $decoded = base64_decode(strtr($state, '-_', '+/'), true);
+        if ($decoded === false) {
+            throw new \RuntimeException('Estado OAuth inválido.');
+        }
 
-        if (!hash_equals($expected, $state)) {
+        $parts = explode('|', $decoded);
+        if (count($parts) !== 3) {
+            throw new \RuntimeException('Estado OAuth inválido.');
+        }
+
+        [$userId, $timestamp, $hmac] = $parts;
+        $payload = $userId . '|' . $timestamp;
+        $key = self::getEncryptionKey();
+        $expectedHmac = hash_hmac('sha256', $payload, $key);
+
+        if (!hash_equals($expectedHmac, $hmac)) {
             throw new \RuntimeException('Estado OAuth inválido. Possível ataque CSRF.');
+        }
+
+        if (time() - (int) $timestamp > 600) {
+            throw new \RuntimeException('Estado OAuth expirado. Tente novamente.');
+        }
+
+        if ((int) $userId !== (int) Session::getLoginUserID()) {
+            throw new \RuntimeException('Estado OAuth inválido. Usuário diferente.');
         }
     }
 
     private static function getEncryptionKey(): string
     {
-        global $CFG_GLPI;
-        $key = $CFG_GLPI['glpinetwork_registration_key'] ?? '';
+        $glpiKey = new \GLPIKey();
+        $key = $glpiKey->get();
         if (empty($key)) {
-            $key = GLPI_KEY ?? 'glpi-agendamento-default-key';
+            $key = defined('GLPI_CONFIG_DIR') ? GLPI_CONFIG_DIR : 'glpi-agendamento-fallback';
         }
         return hash('sha256', $key, true);
     }
