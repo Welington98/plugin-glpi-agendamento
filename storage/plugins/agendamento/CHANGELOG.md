@@ -1,3 +1,12 @@
+# [1.2.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.1.0...v1.2.0) (2026-03-20)
+
+
+### Features
+
+* add ticket scheduling modal and functionality ([36efd2b](https://github.com/Welington98/plugin-glpi-agendamento/commit/36efd2b6ba686060cf235597a690675a81038c42))
+* adicionar marcador visual para seleção de horários na agenda ([0a42d98](https://github.com/Welington98/plugin-glpi-agendamento/commit/0a42d9876ecc4cde48284f5de97af061dadae0d0))
+* implementar visualização e seleção de horários na agenda ([21ed4a7](https://github.com/Welington98/plugin-glpi-agendamento/commit/21ed4a7ed13d5cf8db26f3b45e96971ce762840b))
+
 # [1.1.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.0.0...v1.1.0) (2026-03-20)
 
 
