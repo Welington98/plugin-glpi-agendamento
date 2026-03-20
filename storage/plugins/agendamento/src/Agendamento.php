@@ -479,6 +479,42 @@ class Agendamento
             </div>
         </div>
 
+        <!-- Reschedule Reason Modal -->
+        <div class="modal fade" id="plugin-agendamento-reschedule-modal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="ti ti-calendar-event me-2"></i><?php echo htmlescape(__('Reagendamento', 'agendamento')); ?>
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info d-flex gap-2 align-items-start py-2">
+                            <i class="ti ti-info-circle fs-5 mt-1 flex-shrink-0"></i>
+                            <span id="plugin-agendamento-reschedule-info" class="small"></span>
+                        </div>
+                        <div class="mb-1">
+                            <label for="plugin-agendamento-reschedule-reason" class="form-label fw-bold">
+                                <?php echo htmlescape(__('Motivo do reagendamento', 'agendamento')); ?>
+                                <span class="text-danger">*</span>
+                            </label>
+                            <textarea id="plugin-agendamento-reschedule-reason" class="form-control" rows="3"
+                                placeholder="<?php echo htmlescape(__('Descreva o motivo do reagendamento...', 'agendamento')); ?>"></textarea>
+                            <div class="invalid-feedback"><?php echo htmlescape(__('O motivo é obrigatório.', 'agendamento')); ?></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" id="plugin-agendamento-reschedule-cancel-btn" class="btn btn-outline-secondary">
+                            <i class="ti ti-x me-1"></i><?php echo htmlescape(__('Cancelar', 'agendamento')); ?>
+                        </button>
+                        <button type="button" id="plugin-agendamento-reschedule-confirm-btn" class="btn btn-warning">
+                            <i class="ti ti-calendar-stats me-1"></i><?php echo htmlescape(__('Confirmar Reagendamento', 'agendamento')); ?>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <?php
         $inlineScript = @file_get_contents(\Plugin::getPhpDir('agendamento') . '/public/js/agendamento-calendar.js');
         if ($inlineScript !== false && trim($inlineScript) !== '') {
@@ -644,7 +680,7 @@ class Agendamento
         }
     }
 
-    public static function reschedule(int $ticketId, int $agendamentoId, string $startDateTime, ?string $endDateTime = null): void
+    public static function reschedule(int $ticketId, int $agendamentoId, string $startDateTime, ?string $endDateTime = null, ?string $motivo = null): void
     {
         global $DB;
 
@@ -661,13 +697,27 @@ class Agendamento
             throw new \RuntimeException(__('A data final deve ser maior ou igual à data inicial.', 'agendamento'));
         }
 
-        $DB->update(self::TABLE, [
+        $motivoNormalizado = ($motivo !== null && trim($motivo) !== '') ? trim($motivo) : null;
+
+        $dadosAnteriores = $DB->request(['FROM' => self::TABLE, 'WHERE' => ['id' => $agendamentoId, 'tickets_id' => $ticketId]])->current();
+
+        $updateData = [
             'data_hora_inicio' => $start,
             'data_hora_fim' => $end,
-        ], [
+        ];
+
+        if ($motivoNormalizado !== null) {
+            $updateData['motivo_reagendamento'] = $motivoNormalizado;
+        }
+
+        $DB->update(self::TABLE, $updateData, [
             'id' => $agendamentoId,
             'tickets_id' => $ticketId,
         ]);
+
+        if ($dadosAnteriores && $motivoNormalizado !== null) {
+            self::registerRescheduleFollowup($ticketId, $dadosAnteriores, $start, $end, $motivoNormalizado);
+        }
 
         self::syncLinkedTask($agendamentoId);
         self::syncGoogleCalendar($agendamentoId);
@@ -1550,6 +1600,43 @@ class Agendamento
         }
 
         return implode("\n", $lines);
+    }
+
+    private static function registerRescheduleFollowup(int $ticketId, array $agendamento, string $novaInicio, ?string $novaFim, string $motivo): void
+    {
+        $ticket = new \Ticket();
+        if (!$ticket->getFromDB($ticketId)) {
+            return;
+        }
+
+        $followup = new \ITILFollowup();
+        $followupId = $followup->add([
+            'itemtype' => 'Ticket',
+            'items_id' => $ticketId,
+            'is_private' => 1,
+            'content' => self::buildRescheduleFollowupContent($agendamento, $novaInicio, $novaFim, $motivo),
+        ]);
+
+        if ($followupId <= 0) {
+            throw new \RuntimeException(__('Falha ao registrar o motivo do reagendamento no chamado.', 'agendamento'));
+        }
+    }
+
+    private static function buildRescheduleFollowupContent(array $agendamento, string $novaInicio, ?string $novaFim, string $motivo): string
+    {
+        $linhas = [
+            __('🔄 Agendamento reagendado pelo plugin de agenda.', 'agendamento'),
+            sprintf(__('Motivo: %s', 'agendamento'), $motivo),
+            sprintf(__('Técnico: %s', 'agendamento'), (string) ($agendamento['tecnico_nome'] ?? '-')),
+            sprintf(__('Data/hora anterior: %s', 'agendamento'), self::formatDateTimeLabel((string) ($agendamento['data_hora_inicio'] ?? ''))),
+            sprintf(__('Nova data/hora: %s', 'agendamento'), self::formatDateTimeLabel($novaInicio)),
+        ];
+
+        if ($novaFim !== null) {
+            $linhas[] = sprintf(__('Novo fim: %s', 'agendamento'), self::formatDateTimeLabel($novaFim));
+        }
+
+        return implode("\n", $linhas);
     }
 
     private static function buildTaskPayload(array $agendamento): array
