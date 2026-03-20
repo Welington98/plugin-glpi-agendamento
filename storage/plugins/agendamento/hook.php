@@ -31,10 +31,6 @@ function plugin_agendamento_uninstall()
         $DB->dropTable('glpi_plugin_agendamento_google_tokens');
     }
 
-    if ($DB->tableExists('glpi_plugin_agendamento_agendamentos')) {
-        $DB->dropTable('glpi_plugin_agendamento_agendamentos');
-    }
-
     return true;
 }
 
@@ -55,6 +51,9 @@ function plugin_agendamento_install_tables(Migration $migration)
         }
         if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'google_event_id')) {
             $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `google_event_id` varchar(255) DEFAULT NULL");
+        }
+        if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'motivo_reagendamento')) {
+            $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `motivo_reagendamento` text DEFAULT NULL");
         }
 
         if (!$DB->tableExists('glpi_plugin_agendamento_google_tokens')) {
@@ -89,6 +88,7 @@ function plugin_agendamento_install_tables(Migration $migration)
         `users_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
         `tickettasks_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
         `google_event_id` varchar(255) DEFAULT NULL,
+        `motivo_reagendamento` text DEFAULT NULL,
         `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
         `date_mod` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),

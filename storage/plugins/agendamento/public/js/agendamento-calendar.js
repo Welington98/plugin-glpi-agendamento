@@ -371,7 +371,71 @@
         $(createModal).modal('show');
     };
 
+    const promptRescheduleReason = (event) => {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('plugin-agendamento-reschedule-modal');
+            const reasonInput = document.getElementById('plugin-agendamento-reschedule-reason');
+            const confirmBtn = document.getElementById('plugin-agendamento-reschedule-confirm-btn');
+            const cancelBtn = document.getElementById('plugin-agendamento-reschedule-cancel-btn');
+            const infoEl = document.getElementById('plugin-agendamento-reschedule-info');
+
+            if (!modal || !reasonInput || !confirmBtn || !cancelBtn) {
+                resolve('');
+                return;
+            }
+
+            reasonInput.value = '';
+            reasonInput.classList.remove('is-invalid');
+
+            if (infoEl) {
+                const startText = event.start
+                    ? event.start.toLocaleDateString(config.locale || 'pt-BR') + ' ' + event.start.toLocaleTimeString(config.locale || 'pt-BR', { hour: '2-digit', minute: '2-digit' })
+                    : '';
+                infoEl.textContent = event.title + (startText ? ' → ' + startText : '');
+            }
+
+            const cleanup = () => {
+                confirmBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
+                $(modal).modal('hide');
+            };
+
+            const onConfirm = () => {
+                const motivo = reasonInput.value.trim();
+                if (!motivo) {
+                    reasonInput.classList.add('is-invalid');
+                    reasonInput.focus();
+                    return;
+                }
+                reasonInput.classList.remove('is-invalid');
+                cleanup();
+                resolve(motivo);
+            };
+
+            const onCancel = () => {
+                cleanup();
+                resolve(null);
+            };
+
+            confirmBtn.addEventListener('click', onConfirm);
+            cancelBtn.addEventListener('click', onCancel);
+
+            $(modal).modal('show');
+
+            $(modal).one('hidden.bs.modal', () => {
+                confirmBtn.removeEventListener('click', onConfirm);
+                cancelBtn.removeEventListener('click', onCancel);
+            });
+        });
+    };
+
     const persistEvent = async (info) => {
+        const motivo = await promptRescheduleReason(info.event);
+        if (motivo === null) {
+            info.revert();
+            return;
+        }
+
         const params = new URLSearchParams();
         params.set('_glpi_csrf_token', config.csrfToken || '');
         params.set('action', 'reschedule');
@@ -379,6 +443,7 @@
         params.set('tickets_id', info.event.extendedProps.tickets_id || '0');
         params.set('start', info.event.start ? info.event.start.toISOString() : '');
         params.set('end', info.event.end ? info.event.end.toISOString() : '');
+        params.set('motivo', motivo);
 
         const response = await fetch(config.actionsUrl, {
             method: 'POST',

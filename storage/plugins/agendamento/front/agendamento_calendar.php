@@ -24,11 +24,14 @@ try {
     if ($action === 'reschedule') {
         Session::checkCSRF($_POST);
 
+        $motivo = trim((string) ($_POST['motivo'] ?? ''));
+
         Agendamento::reschedule(
             (int) ($_POST['tickets_id'] ?? 0),
             (int) ($_POST['agendamento_id'] ?? 0),
             (string) ($_POST['start'] ?? ''),
-            trim((string) ($_POST['end'] ?? '')) !== '' ? (string) $_POST['end'] : null
+            trim((string) ($_POST['end'] ?? '')) !== '' ? (string) $_POST['end'] : null,
+            $motivo !== '' ? $motivo : null
         );
 
         echo json_encode([
