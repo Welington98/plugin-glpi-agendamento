@@ -183,3 +183,92 @@ form > .dropdown-footer {
     min-width: 220px;
     justify-content: flex-start;
 }
+
+.plugin-agendamento-ticket-picker {
+    background: linear-gradient(180deg, rgba(32, 107, 196, 0.04), rgba(32, 107, 196, 0.01));
+}
+
+.plugin-agendamento-ticket-calendar-shell {
+    border: 1px solid var(--tblr-border-color, #dce1e7);
+    border-radius: 0.75rem;
+    background: var(--tblr-bg-surface, #fff);
+    overflow: hidden;
+}
+
+.plugin-agendamento-ticket-calendar {
+    padding: 0.75rem;
+}
+
+.plugin-agendamento-ticket-calendar .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem !important;
+}
+
+.plugin-agendamento-ticket-calendar .fc-toolbar-title {
+    font-size: 1rem !important;
+    font-weight: 700;
+}
+
+.plugin-agendamento-ticket-calendar .fc-button {
+    font-size: 0.8125rem !important;
+    padding: 0.35rem 0.75rem !important;
+    border-radius: 999px !important;
+}
+
+.plugin-agendamento-ticket-calendar .fc-button-primary {
+    background-color: #206bc4 !important;
+    border-color: #206bc4 !important;
+}
+
+.plugin-agendamento-ticket-calendar .fc-button-primary:not(:disabled).fc-button-active,
+.plugin-agendamento-ticket-calendar .fc-button-primary:not(:disabled):active {
+    background-color: #174b88 !important;
+    border-color: #174b88 !important;
+}
+
+.plugin-agendamento-ticket-calendar .fc-time-grid-event {
+    border: 0 !important;
+    border-radius: 0.5rem !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+
+.plugin-agendamento-ticket-calendar .fc-time-grid-event .fc-time,
+.plugin-agendamento-ticket-calendar .fc-time-grid-event .fc-title {
+    padding-inline: 0.35rem;
+}
+
+.plugin-agendamento-ticket-calendar .fc-time-grid .fc-slats td {
+    height: 2.75rem;
+}
+
+.plugin-agendamento-ticket-calendar .fc-time-grid .fc-slats td:hover,
+.plugin-agendamento-ticket-calendar .fc-time-grid .fc-widget-content:hover {
+    background: rgba(32, 107, 196, 0.06);
+}
+
+.plugin-agendamento-ticket-calendar .fc-time-grid .fc-now-indicator-line {
+    border-color: #d63939 !important;
+}
+
+.plugin-agendamento-ticket-calendar .fc-time-grid .fc-now-indicator-arrow {
+    border-left-color: #d63939 !important;
+}
+
+.plugin-agendamento-ticket-calendar .fc-time-grid .fc-highlight {
+    background: rgba(32, 107, 196, 0.18) !important;
+}
+
+.plugin-agendamento-ticket-calendar .fc-axis,
+.plugin-agendamento-ticket-calendar .fc-time-grid-axis-cushion,
+.plugin-agendamento-ticket-calendar .fc-day-header,
+.plugin-agendamento-ticket-calendar .fc-col-header-cell-cushion {
+    color: var(--tblr-secondary-color, #52606d);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none !important;
+}
+
+.plugin-agendamento-ticket-calendar .fc-time-grid-container {
+    scrollbar-width: thin;
+}

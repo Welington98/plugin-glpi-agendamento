@@ -5,13 +5,15 @@ use GlpiPlugin\Agendamento\Agendamento;
 include '../../../inc/includes.php';
 
 Session::checkLoginUser();
-Session::checkRight('plugin_agendamento', CREATE);
+
+if (!Session::haveRightsOr('plugin_agendamento', [CREATE, UPDATE, READ])) {
+    Html::displayRightError();
+    exit;
+}
 
 if (!isset($_POST['save_agendamento'])) {
     Html::displayErrorAndDie('lost');
 }
-
-Session::checkCSRF($_POST);
 
 $ticketId = (int) ($_POST['ticket_redirect_id'] ?? $_POST['agendamento_tickets_id'] ?? 0);
 

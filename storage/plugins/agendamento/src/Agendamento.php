@@ -1017,9 +1017,31 @@ class Agendamento
         $metadata = self::getTicketMetadata($ticketId);
         $ticketName = trim((string) ($ticket->fields['name'] ?? ''));
         $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
+        echo Html::css('lib/fullcalendar.css');
+        echo Html::script('lib/fullcalendar.js');
+        echo Html::script('lib/fullcalendar/core/locales/pt-br.js');
+        $ticketCalendarConfig = [
+            'actionsUrl' => $rootDoc . '/plugins/agendamento/front/agendamento_calendar.php',
+            'locale' => 'pt-BR',
+            'initialDate' => date('Y-m-d'),
+            'slotMinTime' => ($pluginConfig['slot_min_time'] ?? '07:00') . ':00',
+            'slotMaxTime' => ($pluginConfig['slot_max_time'] ?? '21:00') . ':00',
+            'slotDuration' => $pluginConfig['slot_duration'] ?? '00:30:00',
+            'calendarHeight' => 520,
+            'texts' => [
+                'today' => __('Hoje', 'agendamento'),
+                'week' => __('Semana', 'agendamento'),
+                'day' => __('Dia', 'agendamento'),
+                'selectionHint' => __('Clique em um horário livre na agenda para preencher o agendamento.', 'agendamento'),
+                'busyWarning' => __('Este horário já está ocupado.', 'agendamento'),
+                'loadError' => __('Não foi possível carregar a agenda visual.', 'agendamento'),
+                'missingTech' => __('Selecione um técnico antes de abrir a agenda.', 'agendamento'),
+                'missingDate' => __('Selecione uma data para abrir a agenda.', 'agendamento'),
+            ],
+        ];
 
         echo "<div class='modal fade' id='plugin-agendamento-ticket-modal' tabindex='-1' aria-hidden='true'>";
-        echo "<div class='modal-dialog modal-dialog-centered modal-lg'>";
+        echo "<div class='modal-dialog modal-dialog-centered modal-xl'>";
         echo "<div class='modal-content'>";
         echo "<div class='modal-header'>";
         echo "<h5 class='modal-title'><i class='ti ti-calendar-plus me-2'></i>" . htmlescape(__('Criar agendamento', 'agendamento')) . "</h5>";
@@ -1063,12 +1085,24 @@ class Agendamento
 
         echo "<div class='col-md-6 d-flex align-items-end'>";
         echo "<button type='button' class='btn btn-outline-primary w-100' id='plugin-agendamento-find-slots' data-actions-url='" . htmlescape($rootDoc . '/plugins/agendamento/front/agendamento_calendar.php') . "'>";
-        echo "<i class='ti ti-calendar-search me-1'></i>" . htmlescape(__('Encontrar horário disponível', 'agendamento'));
+        echo "<i class='ti ti-calendar-search me-1'></i>" . htmlescape(__('Abrir agenda visual', 'agendamento'));
         echo "</button>";
         echo "</div>";
 
         echo "<div class='col-12'>";
-        echo "<div id='plugin-agendamento-slot-results' class='plugin-agendamento-slot-results' hidden></div>";
+        echo "<div class='plugin-agendamento-ticket-picker rounded border p-3 bg-body-tertiary'>";
+        echo "<div class='d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3'>";
+        echo "<div>";
+        echo "<div class='fw-semibold'>" . htmlescape(__('Agenda visual do técnico', 'agendamento')) . "</div>";
+        echo "<div id='plugin-agendamento-ticket-selection-hint' class='small text-muted'>" . htmlescape(__('Escolha um técnico e uma data para navegar pela agenda.', 'agendamento')) . "</div>";
+        echo "</div>";
+        echo "<div id='plugin-agendamento-ticket-selection-badge' class='badge bg-primary-lt text-primary' hidden></div>";
+        echo "</div>";
+        echo "<div id='plugin-agendamento-slot-results' class='plugin-agendamento-slot-results mb-3' hidden></div>";
+        echo "<div id='plugin-agendamento-ticket-calendar-shell' class='plugin-agendamento-ticket-calendar-shell' hidden>";
+        echo "<div id='plugin-agendamento-ticket-calendar' class='plugin-agendamento-ticket-calendar' data-config='" . htmlescape(json_encode($ticketCalendarConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT)) . "'></div>";
+        echo "</div>";
+        echo "</div>";
         echo "</div>";
 
         echo "<div class='col-md-6'>";
