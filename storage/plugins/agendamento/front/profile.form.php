@@ -7,21 +7,19 @@ use GlpiPlugin\Agendamento\Profile;
 Session::checkRight('profile', UPDATE);
 
 if (isset($_POST['update']) && isset($_POST['profiles_id'])) {
-    Session::checkCSRF($_POST);
-
     $profilesId = (int) $_POST['profiles_id'];
     $rights = 0;
 
-    if (isset($_POST['rights']['read'])) {
+    if (!empty($_POST['rights']['read'])) {
         $rights |= READ;
     }
-    if (isset($_POST['rights']['create'])) {
+    if (!empty($_POST['rights']['create'])) {
         $rights |= CREATE;
     }
-    if (isset($_POST['rights']['update'])) {
+    if (!empty($_POST['rights']['update'])) {
         $rights |= UPDATE;
     }
-    if (isset($_POST['rights']['delete'])) {
+    if (!empty($_POST['rights']['delete'])) {
         $rights |= DELETE;
     }
 
