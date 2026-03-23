@@ -1,3 +1,17 @@
+# [1.5.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.4.0...v1.5.0) (2026-03-23)
+
+
+### Bug Fixes
+
+* alterar a porta do serviço GLPI de 80 para 81 ([cec5da1](https://github.com/Welington98/plugin-glpi-agendamento/commit/cec5da1382e6410b08d341f8451633d63fc21fed))
+
+
+### Features
+
+* adicionar integração com Google Calendar na documentação do plugin ([f3680f4](https://github.com/Welington98/plugin-glpi-agendamento/commit/f3680f4252b2de47992afa667a8afe0df643b35a))
+* adicionar suporte a perfis de técnicos na configuração do plugin ([cdc2c79](https://github.com/Welington98/plugin-glpi-agendamento/commit/cdc2c79d727b91351122a7a04fe621a90a061ea9))
+* adicionar suporte ao plugin exec para atualização da versão do plugin ([61beff7](https://github.com/Welington98/plugin-glpi-agendamento/commit/61beff7e64e85772105e011459a946bdcd20a21f))
+
 # [1.4.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.3.0...v1.4.0) (2026-03-20)
 
 
