@@ -6,6 +6,12 @@
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
     [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "perl -0pi -e \"s/define\\('PLUGIN_AGENDAMENTO_VERSION',\\s*'[^']+'\\);/define('PLUGIN_AGENDAMENTO_VERSION', '${nextRelease.version}');/\" storage/plugins/agendamento/setup.php"
+      }
+    ],
+    [
       "@semantic-release/changelog",
       {
         "changelogFile": "storage/plugins/agendamento/CHANGELOG.md"
@@ -16,7 +22,7 @@
       {
         "assets": [
           "storage/plugins/agendamento/CHANGELOG.md",
-          "storage/plugins/agendamento/agendamento.xml"
+          "storage/plugins/agendamento/setup.php"
         ],
         "message": "chore(release): publish version ${nextRelease.version}"
       }

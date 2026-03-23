@@ -9,7 +9,6 @@ use Dropdown;
 use Html;
 use Session;
 use Ticket as GlpiTicket;
-use User;
 
 use GlpiPlugin\Agendamento\GoogleCalendarAuth;
 use GlpiPlugin\Agendamento\GoogleCalendarSync;
@@ -236,14 +235,11 @@ class Agendamento
                         <div class="mb-2">
                             <label class="form-label fw-semibold text-uppercase small mb-1"><?php echo htmlescape(__('Técnico Responsável', 'agendamento')); ?></label>
                             <?php
-                            User::dropdown([
-                                'name' => 'plugin_agendamento_filter_tech',
-                                'value' => 0,
-                                'right' => 'all',
-                                'width' => '100%',
+                            Dropdown::showFromArray('plugin_agendamento_filter_tech', $tecnicosOptions, [
+                                'value' => $filterTechId,
                                 'display_emptychoice' => true,
                                 'emptylabel' => __('Todos os Técnicos', 'agendamento'),
-                                'comments' => false,
+                                'width' => '100%',
                                 'rand' => 1200,
                             ]);
                             ?>
@@ -275,7 +271,7 @@ class Agendamento
                         </div>
 
                         <div class="text-center text-muted mt-3" style="font-size: 0.7rem;">
-                            Plugin Agendamentos v1.0.0<br>GLPI 11.0+
+                            Plugin Agendamentos v<?php echo htmlescape(defined('PLUGIN_AGENDAMENTO_VERSION') ? PLUGIN_AGENDAMENTO_VERSION : 'dev'); ?><br>GLPI 11.0+
                         </div>
                     </div>
                 </div>
@@ -338,14 +334,11 @@ class Agendamento
                                 <div class="col-12">
                                     <label class="form-label required"><?php echo htmlescape(__('Técnico', 'agendamento')); ?></label>
                                     <?php
-                                    User::dropdown([
-                                        'name' => 'agendamento_users_id_tech',
+                                    Dropdown::showFromArray('agendamento_users_id_tech', $tecnicosOptions, [
                                         'value' => $selectedTechnician,
-                                        'right' => 'all',
-                                        'width' => '100%',
                                         'display_emptychoice' => true,
                                         'emptylabel' => __('Selecione um técnico...', 'agendamento'),
-                                        'comments' => false,
+                                        'width' => '100%',
                                         'rand' => 1102,
                                     ]);
                                     ?>
@@ -1111,14 +1104,11 @@ class Agendamento
 
         echo "<div class='col-md-6'>";
         echo "<label class='form-label required'>" . htmlescape(__('Técnico', 'agendamento')) . "</label>";
-        User::dropdown([
-            'name' => 'agendamento_users_id_tech',
+        Dropdown::showFromArray('agendamento_users_id_tech', self::getTecnicosOptions(), [
             'value' => 0,
-            'right' => 'all',
-            'width' => '100%',
             'display_emptychoice' => true,
             'emptylabel' => __('Selecione um técnico...', 'agendamento'),
-            'comments' => false,
+            'width' => '100%',
             'rand' => 4101,
         ]);
         echo "</div>";
@@ -1834,14 +1824,29 @@ class Agendamento
     {
         global $DB;
 
+        $profileIds = Config::getTechnicianProfileIds();
         $options = [];
-        $iterator = $DB->request([
+        $request = [
             'SELECT' => ['id', 'name', 'realname', 'firstname'],
             'FROM' => 'glpi_users',
-            'WHERE' => ['is_deleted' => 0],
+            'WHERE' => ['glpi_users.is_deleted' => 0],
             'ORDER' => ['realname ASC', 'firstname ASC', 'name ASC'],
             'LIMIT' => 300,
-        ]);
+        ];
+
+        if ($profileIds !== []) {
+            $request['LEFT JOIN'] = [
+                'glpi_profiles_users' => [
+                    'ON' => [
+                        'glpi_users' => 'id',
+                        'glpi_profiles_users' => 'users_id',
+                    ],
+                ],
+            ];
+            $request['WHERE']['glpi_profiles_users.profiles_id'] = $profileIds;
+        }
+
+        $iterator = $DB->request($request);
 
         foreach ($iterator as $user) {
             $userId = (int) ($user['id'] ?? 0);
