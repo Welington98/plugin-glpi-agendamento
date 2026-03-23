@@ -17,7 +17,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "80:80"
+      - "81:80"
 
   db:
     image: "mysql:8.0"
