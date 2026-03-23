@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.5.0...v1.5.1) (2026-03-23)
+
+
+### Bug Fixes
+
+* corrigir seleção de campos e ordenação na consulta de usuários ([c21482c](https://github.com/Welington98/plugin-glpi-agendamento/commit/c21482c61c071c3a34de42eeae662962302bd1ae))
+
 # [1.5.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.4.0...v1.5.0) (2026-03-23)
 
 
