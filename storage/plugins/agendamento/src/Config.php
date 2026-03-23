@@ -27,6 +27,7 @@ class Config extends CommonDBTM
         'notify_technician' => 0,
         'calendar_height' => 650,
         'business_days' => '1,2,3,4,5',
+        'technician_profile_ids' => '',
         'google_client_id' => '',
         'google_client_secret' => '',
         'google_sync_enabled' => 0,
@@ -65,6 +66,41 @@ class Config extends CommonDBTM
     {
         $config = self::getConfig();
         return $config[$key] ?? $default ?? (self::DEFAULTS[$key] ?? null);
+    }
+
+    public static function getTechnicianProfileIds(): array
+    {
+        $configured = (string) self::getConfigValue('technician_profile_ids', '');
+        if ($configured === '') {
+            return [];
+        }
+
+        $profileIds = array_map('intval', explode(',', $configured));
+        return array_values(array_unique(array_filter($profileIds, static fn(int $id): bool => $id > 0)));
+    }
+
+    public static function getProfileOptions(): array
+    {
+        global $DB;
+
+        $profiles = $DB->request([
+            'SELECT' => ['id', 'name'],
+            'FROM' => 'glpi_profiles',
+            'ORDER' => ['name ASC'],
+        ]);
+        $options = [];
+
+        foreach ($profiles as $profileData) {
+            $profileId = (int) ($profileData['id'] ?? 0);
+            $profileName = trim((string) ($profileData['name'] ?? ''));
+            if ($profileId <= 0 || $profileName === '') {
+                continue;
+            }
+
+            $options[$profileId] = $profileName;
+        }
+
+        return $options;
     }
 
     public function showConfigForm(): void
@@ -150,6 +186,25 @@ class Config extends CommonDBTM
         echo "<table class='tab_cadre_fixe'>";
         echo "<tr><th colspan='2'><i class='ti ti-settings me-1'></i>" . __('Comportamento', 'agendamento') . "</th></tr>";
 
+        $profileOptions = self::getProfileOptions();
+        $selectedTechnicianProfiles = self::getTechnicianProfileIds();
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td><label for='technician_profile_ids'><i class='ti ti-user-cog me-1'></i>" . __('Perfis permitidos para técnicos', 'agendamento') . "</label></td>";
+        echo "<td>";
+        if ($profileOptions === []) {
+            echo "<span class='text-muted'>" . __('Nenhum perfil disponível.', 'agendamento') . "</span>";
+        } else {
+            echo "<div id='technician_profile_ids' class='d-flex flex-wrap gap-3'>";
+            foreach ($profileOptions as $profileId => $profileName) {
+                $checked = in_array((int) $profileId, $selectedTechnicianProfiles, true) ? ' checked' : '';
+                echo "<label class='me-3'><input type='checkbox' name='technician_profile_ids[]' value='" . (int) $profileId . "'" . $checked . "> " . htmlspecialchars($profileName) . "</label>";
+            }
+            echo "</div>";
+            echo "<div><small>" . __('Se nenhum perfil for selecionado, todos os usuários continuarão disponíveis.', 'agendamento') . "</small></div>";
+        }
+        echo "</td></tr>";
+
         echo "<tr class='tab_bg_1'>";
         echo "<td><label for='auto_create_task'><i class='ti ti-subtask me-1'></i>" . __('Criar TicketTask automaticamente ao agendar', 'agendamento') . "</label></td>";
         echo "<td>";
@@ -219,6 +274,10 @@ echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='
             return;
         }
 
+        $technicianProfileIds = isset($input['technician_profile_ids']) && is_array($input['technician_profile_ids'])
+            ? array_values(array_unique(array_filter(array_map('intval', $input['technician_profile_ids']), static fn(int $id): bool => $id > 0)))
+            : [];
+
         $businessDays = isset($input['business_days']) && is_array($input['business_days'])
             ? implode(',', array_map('intval', $input['business_days']))
             : '1,2,3,4,5';
@@ -233,6 +292,7 @@ echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='
             'notify_technician' => (int) ($input['notify_technician'] ?? 0),
             'calendar_height' => max(400, min(1200, (int) ($input['calendar_height'] ?? 650))),
             'business_days' => $businessDays,
+            'technician_profile_ids' => implode(',', $technicianProfileIds),
             'google_sync_enabled' => (int) ($input['google_sync_enabled'] ?? 0),
             'google_client_id' => trim((string) ($input['google_client_id'] ?? '')),
             'google_calendar_id' => trim((string) ($input['google_calendar_id'] ?? 'primary')) ?: 'primary',
