@@ -9,6 +9,7 @@ use Dropdown;
 use Html;
 use Session;
 use Ticket as GlpiTicket;
+use User;
 
 use GlpiPlugin\Agendamento\GoogleCalendarAuth;
 use GlpiPlugin\Agendamento\GoogleCalendarSync;
@@ -1827,10 +1828,15 @@ class Agendamento
         $profileIds = Config::getTechnicianProfileIds();
         $options = [];
         $request = [
-            'SELECT' => ['id', 'name', 'realname', 'firstname'],
+            'SELECT' => [
+                'glpi_users.id',
+                'glpi_users.name',
+                'glpi_users.realname',
+                'glpi_users.firstname',
+            ],
             'FROM' => 'glpi_users',
             'WHERE' => ['glpi_users.is_deleted' => 0],
-            'ORDER' => ['realname ASC', 'firstname ASC', 'name ASC'],
+            'ORDER' => ['glpi_users.realname ASC', 'glpi_users.firstname ASC', 'glpi_users.name ASC'],
             'LIMIT' => 300,
         ];
 
