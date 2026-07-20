@@ -340,6 +340,7 @@
             allowClear: true,
             placeholder: (config.texts && config.texts.selectTicketPlaceholder) || 'Buscar por número ou título do chamado...',
             minimumInputLength: 0,
+            dropdownParent: createModal ? $(createModal) : $(document.body),
             ajax: {
                 url: config.actionsUrl,
                 dataType: 'json',
