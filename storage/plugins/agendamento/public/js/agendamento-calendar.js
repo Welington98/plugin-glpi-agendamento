@@ -98,6 +98,7 @@
         const detailAddress = document.getElementById('plugin-agendamento-detail-address');
         const detailTask = document.getElementById('plugin-agendamento-detail-task');
         const detailNotes = document.getElementById('plugin-agendamento-detail-notes');
+        const detailHistory = document.getElementById('plugin-agendamento-detail-history');
         const detailTicketId = document.getElementById('plugin-agendamento-detail-ticket-id');
         const detailAgendamentoId = document.getElementById('plugin-agendamento-detail-agendamento-id');
         const detailTicketLink = document.getElementById('plugin-agendamento-detail-ticket-link');
@@ -255,6 +256,48 @@
             }
         } catch (e) {
             console.error('Failed to fetch ticket metadata', e);
+        }
+    };
+
+    const loadAgendamentoHistory = async (agendamentoId) => {
+        if (!detailHistory) return;
+
+        detailHistory.innerHTML = `<li class="text-muted">${escapeHtml(config.texts.loadingHistory || 'Carregando...')}</li>`;
+
+        if (!agendamentoId || agendamentoId === '0') {
+            detailHistory.innerHTML = `<li class="text-muted">${escapeHtml(config.texts.noHistory || 'Nenhum registro.')}</li>`;
+            return;
+        }
+
+        try {
+            const response = await fetch(`${config.actionsUrl}?action=history&agendamento_id=${agendamentoId}`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) throw new Error('request failed');
+
+            const data = await response.json();
+            const items = Array.isArray(data.items) ? data.items : [];
+
+            if (items.length === 0) {
+                detailHistory.innerHTML = `<li class="text-muted">${escapeHtml(config.texts.noHistory || 'Nenhum registro.')}</li>`;
+                return;
+            }
+
+            detailHistory.innerHTML = items.map((item) => {
+                const date = item.date ? new Date(item.date.replace(' ', 'T')) : null;
+                const dateText = date && !Number.isNaN(date.getTime())
+                    ? date.toLocaleString(config.locale || 'pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+                    : '-';
+                const descricao = escapeHtml(item.descricao || '').replaceAll('\n', '<br>');
+
+                return `<li class="mb-2"><strong>${escapeHtml(dateText)}</strong> — ${escapeHtml(item.user || '-')}<br>${descricao}</li>`;
+            }).join('');
+        } catch (error) {
+            detailHistory.innerHTML = `<li class="text-danger">${escapeHtml(config.texts.historyError || 'Erro ao carregar histórico.')}</li>`;
         }
     };
 
@@ -591,6 +634,7 @@
             detailNotes.textContent = props.notes || config.texts.noNotes;
             detailTicketId.value = String(props.tickets_id || '0');
             detailAgendamentoId.value = String(info.event.id || '0');
+            loadAgendamentoHistory(detailAgendamentoId.value);
 
             if (props.ticketUrl) {
                 detailTicketLink.href = props.ticketUrl;
