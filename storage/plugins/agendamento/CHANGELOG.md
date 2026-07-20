@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.5.1...v1.6.0) (2026-07-20)
+
+
+### Features
+
+* adiciona histórico de alterações e enriquece descrição da tarefa ([5ec75fd](https://github.com/Welington98/plugin-glpi-agendamento/commit/5ec75fd452f00042234bbe5008d43030c5ebee3e))
+
 ## [1.5.1](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.5.0...v1.5.1) (2026-03-23)
 
 
