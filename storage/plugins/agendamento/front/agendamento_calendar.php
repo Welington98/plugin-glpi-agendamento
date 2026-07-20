@@ -43,6 +43,14 @@ try {
         exit;
     }
 
+    if ($action === 'history') {
+        echo json_encode([
+            'success' => true,
+            'items' => Agendamento::getHistory((int) ($_GET['agendamento_id'] ?? 0)),
+        ]);
+        exit;
+    }
+
     if ($action === 'ticket_metadata') {
         $ticketId = (int) ($_GET['ticket_id'] ?? 0);
         echo json_encode(Agendamento::getTicketMetadata($ticketId));

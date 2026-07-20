@@ -17,6 +17,7 @@ use GlpiPlugin\Agendamento\GoogleCalendarSync;
 class Agendamento
 {
     private const TABLE = 'glpi_plugin_agendamento_agendamentos';
+    private const HISTORY_TABLE = 'glpi_plugin_agendamento_historico';
 
     public const STATUS_AGENDADO = 'agendado';
     public const STATUS_CONFIRMADO = 'confirmado';
@@ -98,6 +99,9 @@ class Agendamento
                 'noClientContact' => __('Contato não informado.', 'agendamento'),
                 'noClientAddress' => __('Endereço não informado.', 'agendamento'),
                 'noTask' => __('Sem TicketTask vinculada.', 'agendamento'),
+                'loadingHistory' => __('Carregando...', 'agendamento'),
+                'noHistory' => __('Nenhum registro.', 'agendamento'),
+                'historyError' => __('Erro ao carregar histórico.', 'agendamento'),
             ],
         ];
         $selectedTicket = isset($_POST['agendamento_tickets_id'])
@@ -419,6 +423,16 @@ class Agendamento
                                 <div class="text-muted mb-1"><i class="ti ti-notes me-2"></i><?php echo htmlescape(__('Descrição', 'agendamento')); ?></div>
                                 <div id="plugin-agendamento-detail-notes" class="fw-bold ps-4 text-break">-</div>
                             </div>
+                            <div class="list-group-item px-0">
+                                <button type="button" class="btn btn-sm btn-link px-0 text-decoration-none" data-bs-toggle="collapse" data-bs-target="#plugin-agendamento-detail-history-panel">
+                                    <i class="ti ti-history me-1"></i><?php echo htmlescape(__('Histórico de alterações', 'agendamento')); ?>
+                                </button>
+                                <div class="collapse" id="plugin-agendamento-detail-history-panel">
+                                    <ul id="plugin-agendamento-detail-history" class="list-unstyled small ps-4 mb-0">
+                                        <li class="text-muted"><?php echo htmlescape(__('Nenhum registro.', 'agendamento')); ?></li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -576,6 +590,8 @@ class Agendamento
             throw new \RuntimeException(__('Não foi possível salvar o agendamento.', 'agendamento'));
         }
 
+        self::logHistory($agendamentoId, $ticketId, 'criado', __('Agendamento criado.', 'agendamento'));
+
         self::syncLinkedTask($agendamentoId);
         self::syncGoogleCalendar($agendamentoId);
         return $agendamentoId;
@@ -605,7 +621,7 @@ class Agendamento
             throw new \RuntimeException(__('Dados obrigatórios do agendamento não informados.', 'agendamento'));
         }
 
-        $DB->update(self::TABLE, [
+        $novosDados = [
             'tickets_id' => $ticketId,
             'users_id_tech' => $technicianId,
             'tecnico_nome' => self::nullableString($data['tecnico_nome'] ?? null),
@@ -616,9 +632,16 @@ class Agendamento
             'status' => self::normalizeStatus((string) ($data['status'] ?? self::STATUS_AGENDADO)),
             'observacoes' => self::nullableString($data['observacoes'] ?? null),
             'users_id' => (int) ($current['users_id'] ?? $data['users_id'] ?? Session::getLoginUserID()),
-        ], [
+        ];
+
+        $DB->update(self::TABLE, $novosDados, [
             'id' => $agendamentoId,
         ]);
+
+        $diff = self::diffFields($current, $novosDados);
+        if ($diff !== '') {
+            self::logHistory($agendamentoId, $ticketId, 'atualizado', $diff);
+        }
 
         self::syncLinkedTask($agendamentoId);
         self::syncGoogleCalendar($agendamentoId);
@@ -643,6 +666,9 @@ class Agendamento
         $DB->beginTransaction();
 
         try {
+            $previous = self::getById($agendamentoId);
+            $previousStatus = self::normalizeStatus((string) ($previous['status'] ?? self::STATUS_AGENDADO));
+
             $DB->update(self::TABLE, [
                 'status' => $status,
             ], [
@@ -653,6 +679,18 @@ class Agendamento
             $agendamento = self::getById($agendamentoId);
             if ($agendamento === null) {
                 throw new \RuntimeException(__('Agendamento não encontrado.', 'agendamento'));
+            }
+
+            if ($previousStatus !== $status) {
+                $descricao = sprintf(
+                    __('Status alterado de %s para %s.', 'agendamento'),
+                    self::getStatusLabel($previousStatus),
+                    self::getStatusLabel($status)
+                );
+                if ($status === self::STATUS_CANCELADO && $cancelReason !== '') {
+                    $descricao .= "\n" . sprintf(__('Motivo: %s', 'agendamento'), $cancelReason);
+                }
+                self::logHistory($agendamentoId, $ticketId, 'status_alterado', $descricao);
             }
 
             if ($status === self::STATUS_CANCELADO) {
@@ -708,6 +746,18 @@ class Agendamento
             'id' => $agendamentoId,
             'tickets_id' => $ticketId,
         ]);
+
+        if ($dadosAnteriores) {
+            $descricao = sprintf(
+                __('Reagendado de %s para %s.', 'agendamento'),
+                self::formatDateTimeLabel((string) ($dadosAnteriores['data_hora_inicio'] ?? '')),
+                self::formatDateTimeLabel($start)
+            );
+            if ($motivoNormalizado !== null) {
+                $descricao .= "\n" . sprintf(__('Motivo: %s', 'agendamento'), $motivoNormalizado);
+            }
+            self::logHistory($agendamentoId, $ticketId, 'reagendado', $descricao);
+        }
 
         if ($dadosAnteriores && $motivoNormalizado !== null) {
             self::registerRescheduleFollowup($ticketId, $dadosAnteriores, $start, $end, $motivoNormalizado);
@@ -1525,6 +1575,113 @@ class Agendamento
         }
     }
 
+    private static function logHistory(int $agendamentoId, int $ticketId, string $acao, string $descricao): void
+    {
+        global $DB;
+
+        if (trim($descricao) === '') {
+            return;
+        }
+
+        $DB->insert(self::HISTORY_TABLE, [
+            'agendamentos_id' => $agendamentoId,
+            'tickets_id' => $ticketId,
+            'users_id' => Session::getLoginUserID(),
+            'acao' => $acao,
+            'descricao' => $descricao,
+        ]);
+    }
+
+    private static function diffFields(array $before, array $after): string
+    {
+        $labels = [
+            'tecnico_nome' => __('Técnico', 'agendamento'),
+            'contato_cliente' => __('Contato do cliente', 'agendamento'),
+            'endereco_cliente' => __('Endereço do cliente', 'agendamento'),
+            'data_hora_inicio' => __('Início', 'agendamento'),
+            'data_hora_fim' => __('Fim', 'agendamento'),
+            'status' => __('Status', 'agendamento'),
+            'observacoes' => __('Observações', 'agendamento'),
+        ];
+
+        $dateFields = ['data_hora_inicio', 'data_hora_fim'];
+        $lines = [];
+
+        foreach ($labels as $field => $label) {
+            $oldValue = trim((string) ($before[$field] ?? ''));
+            $newValue = trim((string) ($after[$field] ?? ''));
+
+            if ($oldValue === $newValue) {
+                continue;
+            }
+
+            if ($field === 'status') {
+                $oldValue = $oldValue !== '' ? self::getStatusLabel($oldValue) : '-';
+                $newValue = $newValue !== '' ? self::getStatusLabel($newValue) : '-';
+            } elseif (in_array($field, $dateFields, true)) {
+                $oldValue = $oldValue !== '' ? self::formatDateTimeLabel($oldValue) : '-';
+                $newValue = $newValue !== '' ? self::formatDateTimeLabel($newValue) : '-';
+            } else {
+                $oldValue = $oldValue !== '' ? $oldValue : '-';
+                $newValue = $newValue !== '' ? $newValue : '-';
+            }
+
+            $lines[] = sprintf('%s: %s → %s', $label, $oldValue, $newValue);
+        }
+
+        return implode("\n", $lines);
+    }
+
+    public static function getHistory(int $agendamentoId): array
+    {
+        global $DB;
+
+        self::ensureTableExists();
+
+        if ($agendamentoId <= 0 || !$DB->tableExists(self::HISTORY_TABLE)) {
+            return [];
+        }
+
+        $iterator = $DB->request([
+            'SELECT' => [
+                self::HISTORY_TABLE . '.acao',
+                self::HISTORY_TABLE . '.descricao',
+                self::HISTORY_TABLE . '.date_creation',
+                'glpi_users.name AS users_name',
+                'glpi_users.realname AS users_realname',
+                'glpi_users.firstname AS users_firstname',
+            ],
+            'FROM' => self::HISTORY_TABLE,
+            'LEFT JOIN' => [
+                'glpi_users' => [
+                    'FKEY' => [
+                        self::HISTORY_TABLE => 'users_id',
+                        'glpi_users' => 'id',
+                    ],
+                ],
+            ],
+            'WHERE' => [self::HISTORY_TABLE . '.agendamentos_id' => $agendamentoId],
+            'ORDER' => [self::HISTORY_TABLE . '.date_creation DESC'],
+        ]);
+
+        $entries = [];
+        foreach ($iterator as $row) {
+            $userName = trim((string) ($row['users_realname'] ?? '') . ' ' . (string) ($row['users_firstname'] ?? ''));
+            if ($userName === '') {
+                $userName = (string) ($row['users_name'] ?? __('Usuário removido', 'agendamento'));
+            }
+
+            $entries[] = [
+                'date' => (string) ($row['date_creation'] ?? ''),
+                'user' => $userName,
+                'acao' => (string) ($row['acao'] ?? ''),
+                'descricao' => (string) ($row['descricao'] ?? ''),
+            ];
+        }
+
+        return $entries;
+    }
+
     private static function syncLinkedTask(int $agendamentoId): void
     {
         global $DB;
@@ -1670,9 +1827,23 @@ class Agendamento
 
     private static function buildTaskContent(array $agendamento): string
     {
+        $ticketId = (int) ($agendamento['tickets_id'] ?? 0);
+        $ticketDescription = '-';
+        if ($ticketId > 0) {
+            $ticket = new GlpiTicket();
+            if ($ticket->getFromDB($ticketId)) {
+                $content = trim(strip_tags(html_entity_decode((string) ($ticket->fields['content'] ?? ''), ENT_QUOTES)));
+                if ($content !== '') {
+                    $ticketDescription = $content;
+                }
+            }
+        }
+
         $lines = [
             __('Agendamento criado pelo plugin independente de agenda.', 'agendamento'),
             sprintf(__('Técnico: %s', 'agendamento'), (string) ($agendamento['tecnico_nome'] ?? '-')),
+            sprintf(__('Nº do Ticket: %s', 'agendamento'), $ticketId > 0 ? (string) $ticketId : '-'),
+            sprintf(__('Descrição do Chamado: %s', 'agendamento'), $ticketDescription),
             sprintf(__('Contato do cliente: %s', 'agendamento'), (string) ($agendamento['contato_cliente'] ?? '-')),
             sprintf(__('Endereço do cliente: %s', 'agendamento'), (string) ($agendamento['endereco_cliente'] ?? '-')),
             sprintf(__('Início: %s', 'agendamento'), self::formatDateTimeLabel((string) ($agendamento['data_hora_inicio'] ?? ''))),

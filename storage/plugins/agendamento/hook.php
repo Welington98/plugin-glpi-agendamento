@@ -71,6 +71,21 @@ function plugin_agendamento_install_tables(Migration $migration)
                 UNIQUE KEY `users_id` (`users_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$defaultCharset} COLLATE={$defaultCollation}");
         }
+
+        if (!$DB->tableExists('glpi_plugin_agendamento_historico')) {
+            $DB->doQuery("CREATE TABLE `glpi_plugin_agendamento_historico` (
+                `id` int {$defaultKeySign} NOT NULL AUTO_INCREMENT,
+                `agendamentos_id` int {$defaultKeySign} NOT NULL,
+                `tickets_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
+                `users_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
+                `acao` varchar(50) NOT NULL,
+                `descricao` text DEFAULT NULL,
+                `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                KEY `idx_plugin_agendamento_historico_agendamento` (`agendamentos_id`),
+                KEY `idx_plugin_agendamento_historico_ticket` (`tickets_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET={$defaultCharset} COLLATE={$defaultCollation}");
+        }
         return;
     }
 
@@ -110,6 +125,21 @@ function plugin_agendamento_install_tables(Migration $migration)
             `date_mod` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),
             UNIQUE KEY `users_id` (`users_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$defaultCharset} COLLATE={$defaultCollation}");
+    }
+
+    if (!$DB->tableExists('glpi_plugin_agendamento_historico')) {
+        $DB->doQuery("CREATE TABLE `glpi_plugin_agendamento_historico` (
+            `id` int {$defaultKeySign} NOT NULL AUTO_INCREMENT,
+            `agendamentos_id` int {$defaultKeySign} NOT NULL,
+            `tickets_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
+            `users_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
+            `acao` varchar(50) NOT NULL,
+            `descricao` text DEFAULT NULL,
+            `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_plugin_agendamento_historico_agendamento` (`agendamentos_id`),
+            KEY `idx_plugin_agendamento_historico_ticket` (`tickets_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET={$defaultCharset} COLLATE={$defaultCollation}");
     }
 }
