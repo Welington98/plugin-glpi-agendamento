@@ -1,0 +1,26 @@
+{
+    "name": "welington98/plugin-glpi-agendamento",
+    "description": "Testes automatizados do plugin Agendamento para GLPI",
+    "type": "project",
+    "license": "GPL-3.0-or-later",
+    "require": {
+        "php": ">=8.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "GlpiPlugin\\Agendamento\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "GlpiPlugin\\Agendamento\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}
