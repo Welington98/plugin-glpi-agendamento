@@ -27,7 +27,7 @@
                     $('#plugin-agendamento-form-submit').html('<i class="ti ti-device-floppy me-1"></i> Salvar');
                     
                     // Reset Select2s
-                    $("select[name='agendamento_tickets_id']").val('0').trigger('change');
+                    $("select[name='agendamento_tickets_id']").val(null).trigger('change');
                     $("select[name='agendamento_users_id_tech']").val('0').trigger('change');
                     
                     $('#agendamento_status').val('agendado');
@@ -226,6 +226,24 @@
         $select.val(value).trigger('change');
     };
 
+    const setTicketSelectValue = (id, label) => {
+        if (!ticketInput) return;
+
+        const $select = $(ticketInput);
+        const value = String(id || '0');
+
+        if (value === '0' || value === '') {
+            $select.val(null).trigger('change');
+            return;
+        }
+
+        if ($select.find(`option[value='${value}']`).length === 0) {
+            $select.append(new Option(label || `#${value}`, value, true, true));
+        }
+
+        $select.val(value).trigger('change');
+    };
+
     const applyTicketMetadata = async (ticketId) => {
         if (!ticketId || ticketId === '0') return;
 
@@ -316,6 +334,23 @@
         }
     }
 
+    if (ticketInput && !$(ticketInput).hasClass('select2-hidden-accessible')) {
+        $(ticketInput).select2({
+            width: '100%',
+            allowClear: true,
+            placeholder: (config.texts && config.texts.selectTicketPlaceholder) || 'Buscar por número ou título do chamado...',
+            minimumInputLength: 0,
+            dropdownParent: createModal ? $(createModal) : $(document.body),
+            ajax: {
+                url: config.actionsUrl,
+                dataType: 'json',
+                delay: 300,
+                data: (params) => ({ action: 'ticket_search', term: params.term || '' }),
+                processResults: (data) => ({ results: Array.isArray(data.results) ? data.results : [] }),
+            },
+        });
+    }
+
     if (ticketInput) {
         window.jQuery(ticketInput).on('change', () => {
             applyTicketMetadata(ticketInput.value);
@@ -345,7 +380,7 @@
         if (formSubmit) {
             formSubmit.textContent = 'Salvar Agendamento';
         }
-        setSelectValue(ticketInput, '0');
+        setTicketSelectValue(null, null);
         setSelectValue(technicianInput, '0');
         if (statusInput) {
             statusInput.value = 'agendado';
@@ -386,8 +421,8 @@
         }
         
         // Pass event title as label for Select2
-        setSelectValue(ticketInput, String(props.tickets_id || '0'), event.title);
-        
+        setTicketSelectValue(props.tickets_id || '0', event.title);
+
         setSelectValue(technicianInput, String(props.users_id_tech || '0'));
         if (statusInput) {
             statusInput.value = String(props.status || 'agendado');
@@ -732,18 +767,8 @@
         calendarEl.dataset.agendamentoInitialized = '1';
     };
 
-    const initTicketDropdown = () => {
-        const fieldId = 'dropdown_agendamento_tickets_id1101';
-        const config = window.select2_configs && window.select2_configs[fieldId];
-        if (config && typeof setupAjaxDropdown === 'function') {
-            config.ajax_limit_count = 0;
-            setupAjaxDropdown(config);
-        }
-    };
-
     const bootstrap = () => {
         bindModalControls();
-        initTicketDropdown();
         initializeCalendar();
     };
 

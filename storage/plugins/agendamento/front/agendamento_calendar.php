@@ -57,6 +57,13 @@ try {
         exit;
     }
 
+    if ($action === 'ticket_search') {
+        echo json_encode([
+            'results' => Agendamento::searchTickets((string) ($_GET['term'] ?? '')),
+        ]);
+        exit;
+    }
+
     if ($action === 'available_slots') {
         if (!Session::haveRight('plugin_agendamento', CREATE) && !Session::haveRight('plugin_agendamento', UPDATE)) {
             throw new RuntimeException(__('Acesso negado.', 'agendamento'));

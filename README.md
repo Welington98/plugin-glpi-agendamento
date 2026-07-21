@@ -287,6 +287,16 @@ Tipos de commit reconhecidos:
 | `fix`      | Patch release           |
 | `BREAKING` | Major release           |
 
+### Testes
+
+O plugin tem uma suíte de testes unitários (PHPUnit) para a lógica pura de `src/Agendamento.php` (normalização de status/datas, diff de histórico, montagem da busca de chamados), que roda sem precisar de um GLPI real. Ela é executada automaticamente no CI (`.github/workflows/tests.yml`) a cada push/PR.
+
+```bash
+cd storage/plugins/agendamento
+composer install
+vendor/bin/phpunit
+```
+
 ### Executar localmente
 
 ```bash

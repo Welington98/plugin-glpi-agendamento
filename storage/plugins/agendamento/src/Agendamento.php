@@ -102,11 +102,13 @@ class Agendamento
                 'loadingHistory' => __('Carregando...', 'agendamento'),
                 'noHistory' => __('Nenhum registro.', 'agendamento'),
                 'historyError' => __('Erro ao carregar histórico.', 'agendamento'),
+                'selectTicketPlaceholder' => __('Buscar por número ou título do chamado...', 'agendamento'),
             ],
         ];
         $selectedTicket = isset($_POST['agendamento_tickets_id'])
             ? (string) $_POST['agendamento_tickets_id']
             : ($requestedTicketId > 0 ? (string) $requestedTicketId : '');
+        $selectedTicketLabel = (int) $selectedTicket > 0 ? self::getTicketSelectLabel((int) $selectedTicket) : '';
         $selectedTechnician = isset($_POST['agendamento_users_id_tech']) ? (string) $_POST['agendamento_users_id_tech'] : '';
         $selectedStatus = isset($_POST['agendamento_status']) ? (string) $_POST['agendamento_status'] : self::STATUS_AGENDADO;
         $notes = isset($_POST['agendamento_observacoes']) ? (string) $_POST['agendamento_observacoes'] : '';
@@ -303,7 +305,7 @@ class Agendamento
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <form method="post" action="<?php echo htmlescape(self::buildPageUrl($baseUrl, $currentDate, $view)); ?>">
+                    <form method="post" action="<?php echo htmlescape(self::buildPageUrl($baseUrl, $currentDate, $view)); ?>" autocomplete="off">
                         <div class="modal-body">
                             <input type="hidden" name="_glpi_csrf_token" value="<?php echo Session::getNewCSRFToken(); ?>">
                             <input type="hidden" name="date" value="<?php echo htmlescape($currentDate); ?>" class="plugin-agendamento-sync-date">
@@ -313,18 +315,12 @@ class Agendamento
 
                             <div class="row g-3">
                                 <div class="col-12">
-                                    <label for="dropdown_agendamento_tickets_id1101" class="form-label required"><?php echo htmlescape(__('Chamado (Ticket)', 'agendamento')); ?></label>
-                                    <?php
-                                    Dropdown::show('Ticket', [
-                                        'name' => 'agendamento_tickets_id',
-                                        'value' => $selectedTicket,
-                                        'width' => '100%',
-                                        'rand' => 1101,
-                                        'entity' => $_SESSION['glpiactive_entity'] ?? 0,
-                                        'comments' => false,
-                                        'init' => false,
-                                    ]);
-                                    ?>
+                                    <label for="plugin-agendamento-ticket-select" class="form-label required"><?php echo htmlescape(__('Chamado (Ticket)', 'agendamento')); ?></label>
+                                    <select id="plugin-agendamento-ticket-select" name="agendamento_tickets_id" class="form-select" style="width:100%" required>
+                                        <?php if ((int) $selectedTicket > 0 && $selectedTicketLabel !== '') { ?>
+                                        <option value="<?php echo (int) $selectedTicket; ?>" selected><?php echo htmlescape($selectedTicketLabel); ?></option>
+                                        <?php } ?>
+                                    </select>
                                 </div>
 
                                 <div class="col-md-6">
@@ -1872,28 +1868,81 @@ class Agendamento
         return count($iterator) > 0 ? $iterator->current() : null;
     }
 
-    private static function getTicketOptions(): array
+    private static function getTicketSelectLabel(int $ticketId): string
     {
         global $DB;
 
-        $options = [];
+        if ($ticketId <= 0) {
+            return '';
+        }
+
         $iterator = $DB->request([
             'SELECT' => ['id', 'name'],
             'FROM' => 'glpi_tickets',
-            'WHERE' => ['is_deleted' => 0],
-            'ORDER' => ['date_mod DESC'],
-            'LIMIT' => 150,
+            'WHERE' => ['id' => $ticketId],
+            'LIMIT' => 1,
         ]);
 
+        if (count($iterator) === 0) {
+            return '';
+        }
+
+        $row = $iterator->current();
+        return self::formatTicketLabel($ticketId, (string) ($row['name'] ?? ''));
+    }
+
+    public static function searchTickets(string $term, int $limit = 20): array
+    {
+        global $DB;
+
+        $iterator = $DB->request([
+            'SELECT' => ['id', 'name'],
+            'FROM' => 'glpi_tickets',
+            'WHERE' => self::buildTicketSearchWhere($term),
+            'ORDER' => ['date_mod DESC'],
+            'LIMIT' => $limit,
+        ]);
+
+        $results = [];
         foreach ($iterator as $ticket) {
             $ticketId = (int) ($ticket['id'] ?? 0);
             if ($ticketId <= 0) {
                 continue;
             }
-            $options[(string) $ticketId] = sprintf('#%d - %s', $ticketId, trim((string) ($ticket['name'] ?? '')) ?: __('Sem título', 'agendamento'));
+            $results[] = [
+                'id' => $ticketId,
+                'text' => self::formatTicketLabel($ticketId, (string) ($ticket['name'] ?? '')),
+            ];
         }
 
-        return $options;
+        return $results;
+    }
+
+    private static function buildTicketSearchWhere(string $term): array
+    {
+        $where = ['is_deleted' => 0];
+
+        $term = trim($term);
+        if ($term === '') {
+            return $where;
+        }
+
+        if (ctype_digit($term)) {
+            $where[] = ['OR' => [
+                'id' => (int) $term,
+                'name' => ['LIKE', "%{$term}%"],
+            ]];
+        } else {
+            $where['name'] = ['LIKE', "%{$term}%"];
+        }
+
+        return $where;
+    }
+
+    private static function formatTicketLabel(int $ticketId, string $name): string
+    {
+        $name = trim($name);
+        return sprintf('#%d - %s', $ticketId, $name !== '' ? $name : __('Sem título', 'agendamento'));
     }
 
     private static function getTicketMetadataMap(array $ticketIds): array

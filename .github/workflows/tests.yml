@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "storage/plugins/agendamento/**"
+      - ".github/workflows/tests.yml"
+  pull_request:
+    paths:
+      - "storage/plugins/agendamento/**"
+      - ".github/workflows/tests.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: storage/plugins/agendamento
+
+jobs:
+  tests:
+    name: "PHP ${{ matrix.php-version }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["8.2", "8.3"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --no-check-publish
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHP syntax lint
+        run: find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 -P4 php -l
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit --colors=always
