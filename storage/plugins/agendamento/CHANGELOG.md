@@ -1,3 +1,15 @@
+# [1.7.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.6.0...v1.7.0) (2026-07-21)
+
+
+### Bug Fixes
+
+* corrige busca de chamado não recebendo digitação dentro do modal ([57eaa70](https://github.com/Welington98/plugin-glpi-agendamento/commit/57eaa704cd1986409ee95c856ecea17f880a94df))
+
+
+### Features
+
+* busca de chamado por número/título e suíte de testes automatizados ([27d900d](https://github.com/Welington98/plugin-glpi-agendamento/commit/27d900d9f92bb9d0d448cf81698e5102f4f2f79f))
+
 # [1.6.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.5.1...v1.6.0) (2026-07-20)
 
 
