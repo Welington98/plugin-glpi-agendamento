@@ -22,9 +22,16 @@ class MenuAgendamento extends \CommonGLPI
             return false;
         }
 
+        // Técnicos (sem direito de CREATE/UPDATE no plugin) só gerenciam os
+        // próprios agendamentos, então o menu principal já abre direto em
+        // "Meus Agendamentos" em vez da agenda geral de todos os técnicos.
+        $defaultPage = Session::haveRightsOr('plugin_agendamento', [CREATE, UPDATE])
+            ? '/plugins/agendamento/front/agendamento.php'
+            : '/plugins/agendamento/front/meus_agendamentos.php';
+
         $menu = [
             'title' => __('Agendamento', 'agendamento'),
-            'page'  => '/plugins/agendamento/front/agendamento.php',
+            'page'  => $defaultPage,
             'icon'  => self::getIcon(),
             'options' => [
                 'agenda' => [
