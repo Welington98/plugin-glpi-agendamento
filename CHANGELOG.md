@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.7.0...v1.8.0) (2026-07-25)
+
+
+### Features
+
+* adiciona aba de Agendamentos no chamado e reorganiza o plugin na raiz do repo ([4eab3cf](https://github.com/Welington98/plugin-glpi-agendamento/commit/4eab3cf0f4d6e22051a4cad04d585a2a35e4f67f))
+
 # [1.7.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.6.0...v1.7.0) (2026-07-21)
 
 
