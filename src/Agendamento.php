@@ -2682,6 +2682,11 @@ class Agendamento
         $tomorrowStr = date('Y-m-d', strtotime('+1 day'));
         $meusUrl = $rootDoc . '/plugins/agendamento/front/meus_agendamentos.php';
         $agendaUrl = $rootDoc . '/plugins/agendamento/front/agendamento.php';
+        $googleActionUrl = $rootDoc . '/plugins/agendamento/front/google_action.php';
+        $pluginConfig = Config::getConfig();
+        $googleSyncEnabled = (int) ($pluginConfig['google_sync_enabled'] ?? 0) === 1
+            && trim($pluginConfig['google_client_id'] ?? '') !== '';
+        $googleConnected = $googleSyncEnabled && GoogleCalendarAuth::isConnected($userId);
         ?>
         <tr><td colspan="2" style="padding: 0;">
         <div class="card mb-4 shadow-sm" id="plugin-agendamento-central-widget">
@@ -2695,6 +2700,17 @@ class Agendamento
                         <?php } ?>
                     </h3>
                     <div class="d-flex gap-2">
+                        <?php if ($googleSyncEnabled) { ?>
+                            <?php if ($googleConnected) { ?>
+                                <a href="<?php echo htmlspecialchars($googleActionUrl . '?action=sync&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true))); ?>" class="btn btn-sm btn-outline-success" title="<?php echo htmlspecialchars(__('Sincronizar agora com o Google Calendar', 'agendamento')); ?>">
+                                    <i class="ti ti-brand-google me-1"></i><?php echo __('Sincronizar', 'agendamento'); ?>
+                                </a>
+                            <?php } else { ?>
+                                <a href="<?php echo htmlspecialchars($googleActionUrl . '?action=connect&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true))); ?>" class="btn btn-sm btn-google-connect" title="<?php echo htmlspecialchars(__('Conectar sua agenda ao Google Calendar', 'agendamento')); ?>">
+                                    <i class="ti ti-brand-google me-1"></i><?php echo __('Conectar Google Calendar', 'agendamento'); ?>
+                                </a>
+                            <?php } ?>
+                        <?php } ?>
                         <a href="<?php echo htmlspecialchars($meusUrl); ?>" class="btn btn-sm btn-outline-primary">
                             <i class="ti ti-calendar-user me-1"></i><?php echo __('Meus Agendamentos', 'agendamento'); ?>
                         </a>
