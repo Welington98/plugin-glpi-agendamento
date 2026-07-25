@@ -4,18 +4,14 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "storage/plugins/agendamento/**"
-      - ".github/workflows/tests.yml"
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   pull_request:
-    paths:
-      - "storage/plugins/agendamento/**"
-      - ".github/workflows/tests.yml"
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   workflow_dispatch:
-
-defaults:
-  run:
-    working-directory: storage/plugins/agendamento
 
 jobs:
   tests:

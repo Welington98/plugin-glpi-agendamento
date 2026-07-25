@@ -399,7 +399,7 @@ Título: Manutenção preventiva - Servidor principal
 ### Arquivos Novos
 
 ```
-storage/plugins/agendamento/
+. (raiz do repositório)
 ├── src/
 │   ├── GoogleCalendarAuth.php      # Fluxo OAuth 2.0 (authorize, callback, revoke)
 │   └── GoogleCalendarSync.php      # CRUD de eventos no Google Calendar
@@ -410,7 +410,7 @@ storage/plugins/agendamento/
 ### Arquivos Modificados
 
 ```
-storage/plugins/agendamento/
+. (raiz do repositório)
 ├── hook.php                        # + criação da tabela google_tokens
 │                                   # + coluna google_event_id
 ├── setup.php                       # + registro do GoogleCalendarAuth

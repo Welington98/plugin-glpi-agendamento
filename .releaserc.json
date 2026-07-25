@@ -8,21 +8,21 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "perl -0pi -e \"s/define\\('PLUGIN_AGENDAMENTO_VERSION',\\s*'[^']+'\\);/define('PLUGIN_AGENDAMENTO_VERSION', '${nextRelease.version}');/\" storage/plugins/agendamento/setup.php"
+        "prepareCmd": "perl -0pi -e \"s/define\\('PLUGIN_AGENDAMENTO_VERSION',\\s*'[^']+'\\);/define('PLUGIN_AGENDAMENTO_VERSION', '${nextRelease.version}');/\" setup.php"
       }
     ],
     [
       "@semantic-release/changelog",
       {
-        "changelogFile": "storage/plugins/agendamento/CHANGELOG.md"
+        "changelogFile": "CHANGELOG.md"
       }
     ],
     [
       "@semantic-release/git",
       {
         "assets": [
-          "storage/plugins/agendamento/CHANGELOG.md",
-          "storage/plugins/agendamento/setup.php"
+          "CHANGELOG.md",
+          "setup.php"
         ],
         "message": "chore(release): publish version ${nextRelease.version}"
       }

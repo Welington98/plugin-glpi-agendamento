@@ -4,3 +4,8 @@ files/
 storage/glpi/logs
 storage/glpi/config
 .env
+
+# Plugin (Composer/PHPUnit)
+/vendor/
+/.phpunit.cache/
+composer.lock
