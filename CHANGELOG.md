@@ -1,3 +1,11 @@
+# [1.9.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.8.0...v1.9.0) (2026-07-25)
+
+
+### Features
+
+* adiciona botão de Google Calendar no widget central da agenda ([4d023de](https://github.com/Welington98/plugin-glpi-agendamento/commit/4d023de8a6a5445d3b5f296174935acba7383d97))
+* menu do plugin leva técnico direto para Meus Agendamentos ([af3ca21](https://github.com/Welington98/plugin-glpi-agendamento/commit/af3ca213f63f6c38aba58776b67830d2aee2e42c))
+
 # [1.8.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.7.0...v1.8.0) (2026-07-25)
 
 
