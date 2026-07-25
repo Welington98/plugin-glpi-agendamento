@@ -4,6 +4,14 @@
         if (!modalElement || typeof bootstrap === 'undefined') {
             return;
         }
+
+        // GLPI renders this modal inside the "Ticket" tab pane. Move it to <body> so it
+        // still shows up when triggered from another tab (e.g. the "Agendamentos" tab),
+        // whose sibling panes are display:none while inactive.
+        if (modalElement.parentElement !== document.body) {
+            document.body.appendChild(modalElement);
+        }
+
         if (modalElement.dataset.agendamentoTicketBound === '1') {
             return;
         }
@@ -104,6 +112,20 @@
             }
             return Math.min(Math.max(duration, 15), 480);
         };
+
+        if (startInput && endInput && startInput.dataset.agendamentoAutoEndBound !== '1') {
+            startInput.dataset.agendamentoAutoEndBound = '1';
+            startInput.addEventListener('change', () => {
+                if (!startInput.value) {
+                    return;
+                }
+                const start = new Date(startInput.value);
+                if (Number.isNaN(start.getTime())) {
+                    return;
+                }
+                endInput.value = formatDateTimeLocal(new Date(start.getTime() + getDurationMinutes() * 60000));
+            });
+        }
 
         const formatTimeKey = (value) => {
             const date = value instanceof Date ? value : new Date(value);

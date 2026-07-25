@@ -8,7 +8,7 @@ services:
     restart: "unless-stopped"
     volumes:
       - "./storage/glpi:/var/glpi:rw"
-      - "./storage/plugins:/var/www/glpi/plugins:rw"
+      - ".:/var/www/glpi/plugins/agendamento:rw"
     env_file: .env # Pass environment variables from .env file to the container
     environment:
       - GLPI_CACHE_DIR=/var/glpi/files/_cache

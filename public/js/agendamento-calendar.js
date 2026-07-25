@@ -40,6 +40,7 @@
                     
                     $('#agendamento_data_hora_inicio').val(startStr);
                     $('#agendamento_data_hora_fim').val(endStr);
+                    document.getElementById('agendamento_data_hora_fim').dataset.duration = String(defaultEnd.getTime() - defaultStart.getTime());
                 }
 
                 $targetModal.modal('show');
@@ -120,6 +121,33 @@
         const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
         return local.toISOString().slice(0, 16);
     };
+
+    const captureDuration = () => {
+        if (!startInput || !endInput) {
+            return;
+        }
+        const start = new Date(startInput.value);
+        const end = new Date(endInput.value);
+        if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end.getTime() > start.getTime()) {
+            endInput.dataset.duration = String(end.getTime() - start.getTime());
+        }
+    };
+
+    if (startInput && endInput && startInput.dataset.agendamentoAutoEndBound !== '1') {
+        startInput.dataset.agendamentoAutoEndBound = '1';
+        captureDuration();
+        endInput.addEventListener('change', captureDuration);
+        startInput.addEventListener('change', () => {
+            const start = new Date(startInput.value);
+            if (Number.isNaN(start.getTime())) {
+                return;
+            }
+            const storedDuration = Number.parseInt(endInput.dataset.duration || '', 10);
+            const durationMs = Number.isFinite(storedDuration) && storedDuration > 0 ? storedDuration : 60 * 60000;
+            endInput.value = toInputValue(new Date(start.getTime() + durationMs));
+            endInput.dataset.duration = String(durationMs);
+        });
+    }
 
     const toQueryDate = (date) => {
         const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -402,6 +430,7 @@
         if (endInput) {
             endInput.value = toInputValue(end || new Date(start.getTime() + 60 * 60 * 1000));
         }
+        captureDuration();
         $(createModal).modal('show');
     };
 
@@ -444,6 +473,7 @@
         if (endInput) {
             endInput.value = event.end ? toInputValue(event.end) : toInputValue(new Date(event.start.getTime() + 60 * 60 * 1000));
         }
+        captureDuration();
 
         $(detailsModal).modal('hide');
         $(createModal).modal('show');

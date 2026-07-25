@@ -900,6 +900,42 @@ class Agendamento
         return $rows;
     }
 
+    public static function getForTicket(int $ticketId): array
+    {
+        global $DB;
+
+        self::ensureTableExists();
+
+        if ($ticketId <= 0) {
+            return [];
+        }
+
+        $iterator = $DB->request([
+            'SELECT' => [
+                self::TABLE . '.*',
+                'glpi_tickets.id AS ticket_id',
+                'glpi_tickets.name AS ticket_name',
+            ],
+            'FROM' => self::TABLE,
+            'LEFT JOIN' => [
+                'glpi_tickets' => [
+                    'ON' => [
+                        self::TABLE => 'tickets_id',
+                        'glpi_tickets' => 'id',
+                    ],
+                ],
+            ],
+            'WHERE' => [self::TABLE . '.tickets_id' => $ticketId],
+            'ORDER' => [self::TABLE . '.data_hora_inicio DESC', self::TABLE . '.id DESC'],
+        ]);
+
+        $rows = [];
+        foreach ($iterator as $row) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
     public static function getAllAgendamentos(string $statusFilter = '', ?int $techId = null, int $limit = 100): array
     {
         global $DB;
@@ -1240,6 +1276,255 @@ class Agendamento
         echo "</div>";
         echo "</div>";
         echo Html::scriptBlock("if (typeof window.pluginAgendamentoBindTicketModal === 'function') { window.pluginAgendamentoBindTicketModal(); setTimeout(window.pluginAgendamentoBindTicketModal, 0); setTimeout(window.pluginAgendamentoBindTicketModal, 250); }");
+    }
+
+    public static function renderTicketTab(GlpiTicket $ticket): void
+    {
+        global $CFG_GLPI;
+
+        $ticketId = (int) $ticket->getID();
+        if ($ticketId <= 0) {
+            return;
+        }
+
+        $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
+        $formUrl = $rootDoc . '/plugins/agendamento/front/ticket_agendamento.form.php';
+        $canCreate = Session::haveRight('plugin_agendamento', CREATE);
+        $canUpdate = Session::haveRight('plugin_agendamento', UPDATE);
+
+        $agendamentos = self::getForTicket($ticketId);
+
+        echo "<div class='plugin-agendamento-tab'>";
+        echo "<div class='d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3'>";
+        echo "<h4 class='mb-0'>" . htmlescape(sprintf(__('%d agendamento(s) vinculado(s)', 'agendamento'), count($agendamentos))) . "</h4>";
+        if ($canCreate) {
+            echo "<button type='button' class='btn btn-warning plugin-agendamento-tab-new-btn'>";
+            echo "<i class='ti ti-calendar-plus me-1'></i>" . htmlescape(__('Novo agendamento', 'agendamento'));
+            echo "</button>";
+        }
+        echo "</div>";
+
+        if ($agendamentos === []) {
+            echo "<div class='alert alert-info'>";
+            echo "<i class='ti ti-info-circle me-1'></i>";
+            echo htmlescape(__('Nenhum agendamento vinculado a este chamado.', 'agendamento'));
+            echo "</div>";
+        } else {
+            echo "<div class='d-flex flex-column gap-3'>";
+            foreach ($agendamentos as $agendamento) {
+                self::renderTicketTabCard($agendamento, $rootDoc, $formUrl, $ticketId, $canUpdate);
+            }
+            echo "</div>";
+        }
+
+        if ($canUpdate) {
+            echo "<div class='modal fade' id='plugin-agendamento-tab-cancel-modal' tabindex='-1' aria-hidden='true'>";
+            echo "<div class='modal-dialog modal-dialog-centered'>";
+            echo "<div class='modal-content'>";
+            echo "<div class='modal-header'>";
+            echo "<h5 class='modal-title'><i class='ti ti-ban me-2'></i>" . htmlescape(__('Cancelar agendamento', 'agendamento')) . "</h5>";
+            echo "<button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>";
+            echo "</div>";
+            echo "<form method='post' action='" . htmlescape($formUrl) . "'>";
+            echo "<div class='modal-body'>";
+            echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
+            echo Html::hidden('ticket_redirect_id', ['value' => $ticketId]);
+            echo Html::hidden('tickets_id', ['value' => $ticketId]);
+            echo Html::hidden('agendamento_id', ['value' => 0, 'id' => 'plugin-agendamento-tab-cancel-id']);
+            echo "<label for='plugin-agendamento-tab-cancel-reason' class='form-label required'>" . htmlescape(__('Motivo do cancelamento', 'agendamento')) . "</label>";
+            echo "<textarea id='plugin-agendamento-tab-cancel-reason' name='cancelamento_motivo' class='form-control' rows='3' required placeholder='" . htmlescape(__('Descreva o motivo...', 'agendamento')) . "'></textarea>";
+            echo "</div>";
+            echo "<div class='modal-footer'>";
+            echo "<button type='button' class='btn btn-outline-secondary' data-bs-dismiss='modal'>" . htmlescape(__('Voltar', 'agendamento')) . "</button>";
+            echo "<button type='submit' name='update_agendamento_status' value='" . self::STATUS_CANCELADO . "' class='btn btn-danger'>" . htmlescape(__('Confirmar Cancelamento', 'agendamento')) . "</button>";
+            echo "</div>";
+            echo "</form>";
+            echo "</div>";
+            echo "</div>";
+            echo "</div>";
+        }
+
+        if ($canCreate || $canUpdate) {
+            self::renderTicketTabFormModal($formUrl, $ticketId);
+        }
+
+        echo "</div>";
+    }
+
+    private static function renderTicketTabFormModal(string $formUrl, int $ticketId): void
+    {
+        $defaultDateTime = self::getDefaultDateTimeValues();
+        $metadata = self::getTicketMetadata($ticketId);
+
+        echo "<div class='modal fade' id='plugin-agendamento-tab-form-modal' tabindex='-1' aria-hidden='true'>";
+        echo "<div class='modal-dialog modal-dialog-centered modal-lg'>";
+        echo "<div class='modal-content'>";
+        echo "<div class='modal-header'>";
+        echo "<h5 class='modal-title'><i class='ti ti-calendar-plus me-2'></i><span id='plugin-agendamento-tab-form-title'>" . htmlescape(__('Novo agendamento', 'agendamento')) . "</span></h5>";
+        echo "<button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>";
+        echo "</div>";
+        echo "<form method='post' action='" . htmlescape($formUrl) . "'>";
+        echo "<div class='modal-body'>";
+        echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
+        echo Html::hidden('agendamento_tickets_id', ['value' => $ticketId]);
+        echo Html::hidden('ticket_redirect_id', ['value' => $ticketId]);
+        echo Html::hidden('agendamento_action', ['value' => 'create', 'id' => 'plugin-agendamento-tab-form-action']);
+        echo Html::hidden('agendamento_id', ['value' => 0, 'id' => 'plugin-agendamento-tab-form-id']);
+
+        echo "<div class='row g-3'>";
+        echo "<div class='col-md-6'>";
+        echo "<label class='form-label required'>" . htmlescape(__('Técnico', 'agendamento')) . "</label>";
+        Dropdown::showFromArray('agendamento_users_id_tech', self::getTecnicosOptions(), [
+            'value' => 0,
+            'display_emptychoice' => true,
+            'emptylabel' => __('Selecione um técnico...', 'agendamento'),
+            'width' => '100%',
+            'rand' => 5100,
+        ]);
+        echo "</div>";
+        echo "<div class='col-md-6'>";
+        echo "<label class='form-label'>" . htmlescape(__('Status', 'agendamento')) . "</label>";
+        echo "<select id='plugin-agendamento-tab-form-status' name='agendamento_status' class='form-select'>";
+        foreach (self::getStatusOptions() as $statusKey => $statusLabel) {
+            echo "<option value='" . htmlescape($statusKey) . "'" . ($statusKey === self::STATUS_AGENDADO ? ' selected' : '') . ">" . htmlescape($statusLabel) . "</option>";
+        }
+        echo "</select>";
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-tab-form-start' class='form-label required'>" . htmlescape(__('Data Início', 'agendamento')) . "</label>";
+        echo "<input type='datetime-local' id='plugin-agendamento-tab-form-start' name='agendamento_data_hora_inicio' class='form-control' required value='" . htmlescape($defaultDateTime['start']) . "' data-default='" . htmlescape($defaultDateTime['start']) . "'>";
+        echo "</div>";
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-tab-form-end' class='form-label'>" . htmlescape(__('Data Fim Prevista', 'agendamento')) . "</label>";
+        echo "<input type='datetime-local' id='plugin-agendamento-tab-form-end' name='agendamento_data_hora_fim' class='form-control' value='" . htmlescape($defaultDateTime['end']) . "' data-default='" . htmlescape($defaultDateTime['end']) . "'>";
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-tab-form-contact' class='form-label'>" . htmlescape(__('Contato do Cliente', 'agendamento')) . "</label>";
+        echo "<input type='text' id='plugin-agendamento-tab-form-contact' name='agendamento_contato_cliente' class='form-control' value='" . htmlescape($metadata['contact']) . "' data-default='" . htmlescape($metadata['contact']) . "'>";
+        echo "</div>";
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-tab-form-notes' class='form-label'>" . htmlescape(__('Observações', 'agendamento')) . "</label>";
+        echo "<input type='text' id='plugin-agendamento-tab-form-notes' name='agendamento_observacoes' class='form-control' value=''>";
+        echo "</div>";
+
+        echo "<div class='col-12'>";
+        echo "<label for='plugin-agendamento-tab-form-address' class='form-label'>" . htmlescape(__('Endereço do Cliente', 'agendamento')) . "</label>";
+        echo "<textarea id='plugin-agendamento-tab-form-address' name='agendamento_endereco_cliente' class='form-control' rows='2' data-default='" . htmlescape($metadata['address']) . "'>" . htmlescape($metadata['address']) . "</textarea>";
+        echo "</div>";
+        echo "</div>";
+        echo "</div>";
+
+        echo "<div class='modal-footer'>";
+        echo "<button type='button' class='btn btn-outline-secondary' data-bs-dismiss='modal'>" . htmlescape(__('Cancelar', 'agendamento')) . "</button>";
+        echo "<button type='submit' name='save_agendamento' value='1' class='btn btn-primary'>";
+        echo "<i class='ti ti-device-floppy me-1'></i><span id='plugin-agendamento-tab-form-submit-label'>" . htmlescape(__('Salvar agendamento', 'agendamento')) . "</span>";
+        echo "</button>";
+        echo "</div>";
+        echo "</form>";
+        echo "</div>";
+        echo "</div>";
+        echo "</div>";
+    }
+
+    private static function renderTicketTabCard(array $agendamento, string $rootDoc, string $formUrl, int $ticketId, bool $canUpdate): void
+    {
+        $agendamentoId = (int) ($agendamento['id'] ?? 0);
+        $status = self::normalizeStatus((string) ($agendamento['status'] ?? self::STATUS_AGENDADO));
+        $palette = self::getStatusPalette($status);
+        $startAt = strtotime((string) ($agendamento['data_hora_inicio'] ?? ''));
+        $endAt = strtotime((string) ($agendamento['data_hora_fim'] ?? ''));
+        $periodLabel = $startAt !== false ? date('d/m/Y H:i', $startAt) : '-';
+        if ($endAt !== false) {
+            $periodLabel .= ' - ' . date('H:i', $endAt);
+        }
+        $isCancelled = $status === self::STATUS_CANCELADO;
+        $taskId = (int) ($agendamento['tickettasks_id'] ?? 0);
+
+        $cardClasses = 'plugin-agendamento-tab-card' . ($isCancelled ? ' plugin-agendamento-tab-card-cancelado' : '');
+        echo "<article class='" . $cardClasses . "' style='border-left-color:" . htmlescape($palette['border']) . "'"
+            . " data-id='" . $agendamentoId . "'"
+            . " data-tech='" . (int) ($agendamento['users_id_tech'] ?? 0) . "'"
+            . " data-start='" . htmlescape($startAt !== false ? date('Y-m-d\TH:i', $startAt) : '') . "'"
+            . " data-end='" . htmlescape($endAt !== false ? date('Y-m-d\TH:i', $endAt) : '') . "'"
+            . " data-status='" . htmlescape($status) . "'"
+            . " data-contact='" . htmlescape((string) ($agendamento['contato_cliente'] ?? '')) . "'"
+            . " data-address='" . htmlescape((string) ($agendamento['endereco_cliente'] ?? '')) . "'"
+            . " data-notes='" . htmlescape((string) ($agendamento['observacoes'] ?? '')) . "'"
+            . ">";
+
+        echo "<div class='d-flex align-items-start justify-content-between flex-wrap gap-2'>";
+        echo "<div>";
+        echo "<span class='badge mb-1' style='background-color:" . htmlescape($palette['background']) . ";color:" . htmlescape($palette['text']) . "'>" . htmlescape(self::getStatusLabel($status)) . "</span>";
+        echo "<div class='fw-bold fs-5'><i class='ti ti-clock me-1'></i>" . htmlescape($periodLabel) . "</div>";
+        echo "</div>";
+
+        if ($canUpdate) {
+            echo "<div class='d-flex gap-1 flex-wrap'>";
+            if (!$isCancelled) {
+                echo "<button type='button' class='btn btn-sm btn-outline-primary plugin-agendamento-tab-edit-btn'><i class='ti ti-pencil'></i></button>";
+            }
+            echo "<form method='post' action='" . htmlescape($formUrl) . "' class='d-flex gap-1'>";
+            echo Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
+            echo Html::hidden('ticket_redirect_id', ['value' => $ticketId]);
+            echo Html::hidden('tickets_id', ['value' => $ticketId]);
+            echo Html::hidden('agendamento_id', ['value' => $agendamentoId]);
+            foreach ([self::STATUS_CONFIRMADO => __('Confirmar', 'agendamento'), self::STATUS_REALIZADO => __('Concluir', 'agendamento')] as $action => $label) {
+                if ($action === $status || $isCancelled) {
+                    continue;
+                }
+                echo "<button type='submit' name='update_agendamento_status' value='" . htmlescape($action) . "' class='btn btn-sm btn-outline-success'>" . htmlescape($label) . "</button>";
+            }
+            echo "</form>";
+            if (!$isCancelled) {
+                echo "<button type='button' class='btn btn-sm btn-outline-danger plugin-agendamento-tab-cancel-btn'><i class='ti ti-ban'></i></button>";
+            }
+            echo "</div>";
+        }
+        echo "</div>";
+
+        echo "<dl class='row mb-1 mt-2 small'>";
+        echo "<dt class='col-sm-3 text-muted'>" . htmlescape(__('Técnico', 'agendamento')) . "</dt>";
+        echo "<dd class='col-sm-9'>" . htmlescape(trim((string) ($agendamento['tecnico_nome'] ?? '')) ?: '-') . "</dd>";
+        echo "<dt class='col-sm-3 text-muted'>" . htmlescape(__('Contato', 'agendamento')) . "</dt>";
+        echo "<dd class='col-sm-9'>" . htmlescape(trim((string) ($agendamento['contato_cliente'] ?? '')) ?: '-') . "</dd>";
+        if (trim((string) ($agendamento['endereco_cliente'] ?? '')) !== '') {
+            echo "<dt class='col-sm-3 text-muted'>" . htmlescape(__('Endereço', 'agendamento')) . "</dt>";
+            echo "<dd class='col-sm-9'>" . htmlescape((string) $agendamento['endereco_cliente']) . "</dd>";
+        }
+        if (trim((string) ($agendamento['observacoes'] ?? '')) !== '') {
+            echo "<dt class='col-sm-3 text-muted'>" . htmlescape(__('Observações', 'agendamento')) . "</dt>";
+            echo "<dd class='col-sm-9'>" . nl2br(htmlescape((string) $agendamento['observacoes'])) . "</dd>";
+        }
+        echo "</dl>";
+
+        echo "<div class='d-flex align-items-center gap-3 small text-muted flex-wrap'>";
+        if ($taskId > 0) {
+            echo "<a href='" . htmlescape($rootDoc . '/front/tickettask.form.php?id=' . $taskId) . "' target='_blank'><i class='ti ti-checklist me-1'></i>" . htmlescape(__('Tarefa vinculada', 'agendamento')) . "</a>";
+        }
+        if (trim((string) ($agendamento['google_event_id'] ?? '')) !== '') {
+            echo "<span class='google-sync-icon'><i class='ti ti-brand-google me-1'></i>" . htmlescape(__('Sincronizado com Google Calendar', 'agendamento')) . "</span>";
+        }
+        echo "</div>";
+
+        $history = self::getHistory($agendamentoId);
+        if ($history !== []) {
+            $collapseId = 'plugin-agendamento-tab-history-' . $agendamentoId;
+            echo "<button type='button' class='btn btn-sm btn-link px-0 mt-1 text-decoration-none' data-bs-toggle='collapse' data-bs-target='#" . $collapseId . "'>";
+            echo "<i class='ti ti-history me-1'></i>" . htmlescape(__('Histórico de alterações', 'agendamento'));
+            echo "</button>";
+            echo "<div class='collapse' id='" . $collapseId . "'>";
+            echo "<ul class='list-unstyled small ps-3 mb-0'>";
+            foreach ($history as $entry) {
+                $entryDate = strtotime((string) ($entry['date'] ?? ''));
+                echo "<li class='mb-1'><span class='text-muted'>" . ($entryDate !== false ? date('d/m/Y H:i', $entryDate) : '-') . "</span> — <strong>" . htmlescape((string) ($entry['user'] ?? '')) . "</strong>: " . nl2br(htmlescape((string) ($entry['descricao'] ?? ''))) . "</li>";
+            }
+            echo "</ul>";
+            echo "</div>";
+        }
+
+        echo "</article>";
     }
 
     public static function showMeusAgendamentos(): void

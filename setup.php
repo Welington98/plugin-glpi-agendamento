@@ -56,13 +56,14 @@ function plugin_init_agendamento()
 
     $PLUGIN_HOOKS['csrf_compliant']['agendamento'] = true;
     $PLUGIN_HOOKS['add_css']['agendamento'] = ['public/css/agendamento.css'];
-    $PLUGIN_HOOKS['add_javascript']['agendamento'] = ['public/js/agendamento-ticket.js'];
+    $PLUGIN_HOOKS['add_javascript']['agendamento'] = ['public/js/agendamento-ticket.js', 'public/js/agendamento-ticket-tab.js'];
 
     Plugin::registerClass('GlpiPlugin\\Agendamento\\MenuAgendamento');
     Plugin::registerClass('GlpiPlugin\\Agendamento\\Config', ['addtabon' => 'Config']);
     Plugin::registerClass('GlpiPlugin\\Agendamento\\GoogleCalendarAuth');
     Plugin::registerClass('GlpiPlugin\\Agendamento\\GoogleCalendarSync');
     Plugin::registerClass('GlpiPlugin\\Agendamento\\Profile', ['addtabon' => 'Profile']);
+    Plugin::registerClass('GlpiPlugin\\Agendamento\\TicketAgendamento', ['addtabon' => 'Ticket']);
 
     if (isset($DB) && $DB->connected) {
         plugin_agendamento_check_schema();

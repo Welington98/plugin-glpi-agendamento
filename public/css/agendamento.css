@@ -294,3 +294,28 @@ form > .dropdown-footer {
 .plugin-agendamento-ticket-calendar .fc-time-grid-container {
     scrollbar-width: thin;
 }
+
+/* 12. Ticket Tab */
+.plugin-agendamento-tab-card {
+    border: 1px solid var(--tblr-border-color, #dce1e7);
+    border-left: 4px solid var(--tblr-border-color, #dce1e7);
+    border-radius: 0.5rem;
+    background: var(--tblr-bg-surface, #fff);
+    padding: 1rem 1.25rem;
+}
+
+.plugin-agendamento-tab-card-cancelado {
+    opacity: 0.65;
+}
+
+.plugin-agendamento-tab-card-cancelado .fw-bold {
+    text-decoration: line-through;
+}
+
+.plugin-agendamento-tab-card dl.row {
+    margin-bottom: 0;
+}
+
+.plugin-agendamento-tab-card dt {
+    font-weight: 600;
+}
