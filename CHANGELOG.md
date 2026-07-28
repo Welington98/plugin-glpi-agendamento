@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.9.0...v1.10.0) (2026-07-28)
+
+
+### Features
+
+* adiciona tipo de agendamento configurável (Entrega/Retirada/Visita Técnica) ([e2657b7](https://github.com/Welington98/plugin-glpi-agendamento/commit/e2657b7c15b92512448bbaffd83a22f997fd4dc8))
+
 # [1.9.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.8.0...v1.9.0) (2026-07-25)
 
 
