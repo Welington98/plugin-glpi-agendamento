@@ -173,6 +173,7 @@ class GoogleCalendarSync
         $contato = $agendamento['contato_cliente'] ?? '';
         $endereco = $agendamento['endereco_cliente'] ?? '';
         $status = $agendamento['status'] ?? 'agendado';
+        $tipo = trim((string) ($agendamento['tipo'] ?? ''));
         $observacoes = $agendamento['observacoes'] ?? '';
         $baseUrl = rtrim((string) ($CFG_GLPI['url_base'] ?? ''), '/');
 
@@ -188,6 +189,9 @@ class GoogleCalendarSync
             $description .= "📍 Endereço: {$endereco}\n";
         }
         $description .= "\n📌 Status: " . ucfirst($status) . "\n";
+        if ($tipo !== '') {
+            $description .= "🏷️ Tipo: {$tipo}\n";
+        }
         if ($observacoes !== '') {
             $description .= "📝 Observações: {$observacoes}\n";
         }
