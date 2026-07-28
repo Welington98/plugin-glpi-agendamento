@@ -55,6 +55,9 @@ function plugin_agendamento_install_tables(Migration $migration)
         if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'motivo_reagendamento')) {
             $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `motivo_reagendamento` text DEFAULT NULL");
         }
+        if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'tipo')) {
+            $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `tipo` varchar(100) DEFAULT NULL AFTER `status`");
+        }
 
         if (!$DB->tableExists('glpi_plugin_agendamento_google_tokens')) {
             $DB->doQuery("CREATE TABLE `glpi_plugin_agendamento_google_tokens` (
@@ -99,6 +102,7 @@ function plugin_agendamento_install_tables(Migration $migration)
         `data_hora_inicio` datetime NOT NULL,
         `data_hora_fim` datetime DEFAULT NULL,
         `status` varchar(50) NOT NULL DEFAULT 'agendado',
+        `tipo` varchar(100) DEFAULT NULL,
         `observacoes` text DEFAULT NULL,
         `users_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
         `tickettasks_id` int {$defaultKeySign} NOT NULL DEFAULT 0,

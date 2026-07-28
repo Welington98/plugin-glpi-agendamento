@@ -28,6 +28,7 @@ class Config extends CommonDBTM
         'calendar_height' => 650,
         'business_days' => '1,2,3,4,5',
         'technician_profile_ids' => '',
+        'agendamento_tipos' => "Entrega\nRetirada\nVisita Técnica",
         'google_client_id' => '',
         'google_client_secret' => '',
         'google_sync_enabled' => 0,
@@ -77,6 +78,25 @@ class Config extends CommonDBTM
 
         $profileIds = array_map('intval', explode(',', $configured));
         return array_values(array_unique(array_filter($profileIds, static fn(int $id): bool => $id > 0)));
+    }
+
+    public static function getTipoOptions(): array
+    {
+        $configured = (string) self::getConfigValue('agendamento_tipos', '');
+        if (trim($configured) === '') {
+            return [];
+        }
+
+        $options = [];
+        foreach (explode("\n", $configured) as $line) {
+            $label = trim($line);
+            if ($label === '' || isset($options[$label])) {
+                continue;
+            }
+            $options[$label] = $label;
+        }
+
+        return $options;
     }
 
     public static function getProfileOptions(): array
@@ -181,6 +201,12 @@ class Config extends CommonDBTM
         }
         echo "</td></tr>";
 
+        echo "<tr class='tab_bg_1'>";
+        echo "<td><label for='agendamento_tipos'><i class='ti ti-tag me-1'></i>" . __('Tipos de agendamento', 'agendamento') . "</label></td>";
+        echo "<td><textarea id='agendamento_tipos' name='agendamento_tipos' class='form-control' rows='4' style='width:300px;display:inline-block' placeholder='" . htmlspecialchars(__('Um tipo por linha...', 'agendamento')) . "'>" . htmlspecialchars($config['agendamento_tipos']) . "</textarea>";
+        echo "&nbsp;<small>" . __('Um tipo por linha. Usado no campo opcional "Tipo" dos agendamentos (ex.: Entrega, Retirada, Visita Técnica).', 'agendamento') . "</small></td>";
+        echo "</tr>";
+
         echo "</table><br>";
 
         echo "<table class='tab_cadre_fixe'>";
@@ -282,6 +308,16 @@ echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='
             ? implode(',', array_map('intval', $input['business_days']))
             : '1,2,3,4,5';
 
+        $tipoLines = preg_split('/\r\n|\r|\n/', (string) ($input['agendamento_tipos'] ?? ''));
+        $agendamentoTipos = [];
+        foreach ($tipoLines as $line) {
+            $label = trim($line);
+            if ($label === '' || in_array($label, $agendamentoTipos, true)) {
+                continue;
+            }
+            $agendamentoTipos[] = $label;
+        }
+
         $data = [
             'default_view' => in_array($input['default_view'] ?? '', ['day', 'week', 'month']) ? $input['default_view'] : 'week',
             'slot_min_time' => self::sanitizeTime($input['slot_min_time'] ?? '07:00'),
@@ -293,6 +329,7 @@ echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='
             'calendar_height' => max(400, min(1200, (int) ($input['calendar_height'] ?? 650))),
             'business_days' => $businessDays,
             'technician_profile_ids' => implode(',', $technicianProfileIds),
+            'agendamento_tipos' => implode("\n", $agendamentoTipos),
             'google_sync_enabled' => (int) ($input['google_sync_enabled'] ?? 0),
             'google_client_id' => trim((string) ($input['google_client_id'] ?? '')),
             'google_calendar_id' => trim((string) ($input['google_calendar_id'] ?? 'primary')) ?: 'primary',

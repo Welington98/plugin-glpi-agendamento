@@ -66,6 +66,7 @@
         submitLabelEl: document.getElementById('plugin-agendamento-tab-form-submit-label'),
         technicianInput: modalElement ? modalElement.querySelector("select[name='agendamento_users_id_tech']") : null,
         statusInput: document.getElementById('plugin-agendamento-tab-form-status'),
+        tipoInput: document.getElementById('plugin-agendamento-tab-form-tipo'),
         notesInput: document.getElementById('plugin-agendamento-tab-form-notes'),
         contactInput: document.getElementById('plugin-agendamento-tab-form-contact'),
         addressInput: document.getElementById('plugin-agendamento-tab-form-address'),
@@ -96,6 +97,9 @@
         setSelectValue(fields.technicianInput, '0');
         if (fields.statusInput) {
             fields.statusInput.value = 'agendado';
+        }
+        if (fields.tipoInput) {
+            fields.tipoInput.value = '';
         }
         if (fields.notesInput) {
             fields.notesInput.value = '';
@@ -143,6 +147,9 @@
         setSelectValue(fields.technicianInput, card.dataset.tech || '0');
         if (fields.statusInput) {
             fields.statusInput.value = card.dataset.status || 'agendado';
+        }
+        if (fields.tipoInput) {
+            fields.tipoInput.value = card.dataset.tipo || '';
         }
         if (fields.notesInput) {
             fields.notesInput.value = card.dataset.notes || '';

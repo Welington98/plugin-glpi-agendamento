@@ -35,6 +35,7 @@ class Agendamento
         // Using AJAX loading for ticket options now, removed bulk loading for performance
         $tecnicosOptions = self::getTecnicosOptions();
         $statusOptions = self::getStatusOptions();
+        $tipoOptions = Config::getTipoOptions();
         $defaultDateTime = self::getDefaultDateTimeValues();
         $currentDate = $period['anchor']->format('Y-m-d');
         $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
@@ -48,6 +49,7 @@ class Agendamento
             $viewMode = 'calendar';
         }
         $statusFilter = isset($_GET['status']) ? trim((string) $_GET['status']) : '';
+        $tipoFilter = isset($_GET['tipo']) ? trim((string) $_GET['tipo']) : '';
         $filterTechId = isset($_GET['tech_id']) ? (int) $_GET['tech_id'] : 0;
         $requestedTicketId = isset($_GET['ticket_id']) ? (int) $_GET['ticket_id'] : 0;
         $autoOpenCreateModal = $canCreate
@@ -69,7 +71,7 @@ class Agendamento
                 $counts[$s]++;
             }
         }
-        $listAgendamentos = self::getAllAgendamentos($statusFilter, $filterTechId > 0 ? $filterTechId : null, 200);
+        $listAgendamentos = self::getAllAgendamentos($statusFilter, $filterTechId > 0 ? $filterTechId : null, 200, $tipoFilter);
 
         $calendarConfig = [
             'eventsUrl' => $rootDoc . '/plugins/agendamento/front/agendamento_calendar.php?action=events' . ($filterTechId > 0 ? '&tech_id=' . $filterTechId : ''),
@@ -111,6 +113,7 @@ class Agendamento
         $selectedTicketLabel = (int) $selectedTicket > 0 ? self::getTicketSelectLabel((int) $selectedTicket) : '';
         $selectedTechnician = isset($_POST['agendamento_users_id_tech']) ? (string) $_POST['agendamento_users_id_tech'] : '';
         $selectedStatus = isset($_POST['agendamento_status']) ? (string) $_POST['agendamento_status'] : self::STATUS_AGENDADO;
+        $selectedTipo = isset($_POST['agendamento_tipo']) ? (string) $_POST['agendamento_tipo'] : '';
         $notes = isset($_POST['agendamento_observacoes']) ? (string) $_POST['agendamento_observacoes'] : '';
         $selectedClientContact = isset($_POST['agendamento_contato_cliente'])
             ? (string) $_POST['agendamento_contato_cliente']
@@ -164,10 +167,32 @@ class Agendamento
                     if ($filterTechId > 0) {
                         $badgeParams['tech_id'] = $filterTechId;
                     }
+                    if ($tipoFilter !== '') {
+                        $badgeParams['tipo'] = $tipoFilter;
+                    }
                     echo "<div class='col-auto'>";
                     echo "<a href='" . htmlescape($buildOverviewUrl($badgeParams)) . "' class='btn btn-outline-" . $badge['color'] . $active . "'>";
                     echo htmlescape($badge['label']) . " <span class='badge bg-" . $badge['color'] . " ms-1'>" . $badge['count'] . "</span>";
                     echo "</a></div>";
+                }
+                if ($tipoOptions !== []) {
+                    $tipoParamsBase = ['mode' => 'list'];
+                    if ($statusFilter !== '') {
+                        $tipoParamsBase['status'] = $statusFilter;
+                    }
+                    if ($filterTechId > 0) {
+                        $tipoParamsBase['tech_id'] = $filterTechId;
+                    }
+                    echo "<div class='col-auto'>";
+                    echo "<select class='form-select form-select-sm' style='width:auto' onchange='if(this.value){window.location.href=this.value;}'>";
+                    echo "<option value='" . htmlescape($buildOverviewUrl($tipoParamsBase)) . "'" . ($tipoFilter === '' ? ' selected' : '') . ">" . htmlescape(__('Todos os Tipos', 'agendamento')) . "</option>";
+                    foreach ($tipoOptions as $tipoKey => $tipoLabel) {
+                        $optionParams = $tipoParamsBase;
+                        $optionParams['tipo'] = $tipoKey;
+                        echo "<option value='" . htmlescape($buildOverviewUrl($optionParams)) . "'" . ($tipoFilter === $tipoKey ? ' selected' : '') . ">" . htmlescape($tipoLabel) . "</option>";
+                    }
+                    echo "</select>";
+                    echo "</div>";
                 }
                 ?>
             </div>
@@ -189,6 +214,7 @@ class Agendamento
                                     <th><?php echo htmlescape(__('Início', 'agendamento')); ?></th>
                                     <th><?php echo htmlescape(__('Fim', 'agendamento')); ?></th>
                                     <th><?php echo htmlescape(__('Status', 'agendamento')); ?></th>
+                                    <th><?php echo htmlescape(__('Tipo', 'agendamento')); ?></th>
                                     <th><?php echo htmlescape(__('Contato', 'agendamento')); ?></th>
                                     <th><?php echo htmlescape(__('Observações', 'agendamento')); ?></th>
                                 </tr>
@@ -215,6 +241,13 @@ class Agendamento
                                         <span class="badge" style="background-color:<?php echo htmlescape($palette['background']); ?>;color:<?php echo htmlescape($palette['text']); ?>;border:1px solid <?php echo htmlescape($palette['border']); ?>">
                                             <?php echo htmlescape(self::getStatusLabel($status)); ?>
                                         </span>
+                                    </td>
+                                    <td>
+                                        <?php if (trim((string) ($ag['tipo'] ?? '')) !== '') { ?>
+                                            <span class="badge bg-secondary-lt"><?php echo htmlescape((string) $ag['tipo']); ?></span>
+                                        <?php } else { ?>
+                                            -
+                                        <?php } ?>
                                     </td>
                                     <td><?php echo htmlescape(trim((string) ($ag['contato_cliente'] ?? '')) ?: '-'); ?></td>
                                     <td><?php echo htmlescape(mb_strimwidth(trim((string) ($ag['observacoes'] ?? '')), 0, 60, '...') ?: '-'); ?></td>
@@ -363,6 +396,15 @@ class Agendamento
                                     </select>
                                 </div>
                                 <div class="col-md-6">
+                                    <label for="agendamento_tipo" class="form-label"><?php echo htmlescape(__('Tipo', 'agendamento')); ?></label>
+                                    <select id="agendamento_tipo" name="agendamento_tipo" class="form-select">
+                                        <option value=""<?php echo $selectedTipo === '' ? ' selected' : ''; ?>><?php echo htmlescape(__('Não definido', 'agendamento')); ?></option>
+                                        <?php foreach ($tipoOptions as $tipoKey => $tipoLabel) { ?>
+                                            <option value="<?php echo htmlescape($tipoKey); ?>"<?php echo $selectedTipo === $tipoKey ? ' selected' : ''; ?>><?php echo htmlescape($tipoLabel); ?></option>
+                                        <?php } ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
                                     <label for="agendamento_observacoes" class="form-label"><?php echo htmlescape(__('Observações', 'agendamento')); ?></label>
                                     <input type="text" id="agendamento_observacoes" name="agendamento_observacoes" class="form-control" value="<?php echo htmlescape($notes); ?>" placeholder="<?php echo htmlescape(__('Notas...', 'agendamento')); ?>">
                                 </div>
@@ -402,6 +444,10 @@ class Agendamento
                             <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
                                 <span class="text-muted"><i class="ti ti-user-cog me-2"></i><?php echo htmlescape(__('Técnico', 'agendamento')); ?></span>
                                 <strong id="plugin-agendamento-detail-tech" class="text-end">-</strong>
+                            </div>
+                            <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                <span class="text-muted"><i class="ti ti-tag me-2"></i><?php echo htmlescape(__('Tipo', 'agendamento')); ?></span>
+                                <strong id="plugin-agendamento-detail-tipo" class="text-end">-</strong>
                             </div>
                             <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
                                 <span class="text-muted"><i class="ti ti-user me-2"></i><?php echo htmlescape(__('Contato', 'agendamento')); ?></span>
@@ -576,6 +622,7 @@ class Agendamento
             'data_hora_inicio' => $start,
             'data_hora_fim' => $end,
             'status' => self::normalizeStatus((string) ($data['status'] ?? self::STATUS_AGENDADO)),
+            'tipo' => self::nullableString($data['tipo'] ?? null),
             'observacoes' => self::nullableString($data['observacoes'] ?? null),
             'users_id' => (int) ($data['users_id'] ?? 0),
             'tickettasks_id' => 0,
@@ -626,6 +673,7 @@ class Agendamento
             'data_hora_inicio' => $start,
             'data_hora_fim' => $end,
             'status' => self::normalizeStatus((string) ($data['status'] ?? self::STATUS_AGENDADO)),
+            'tipo' => self::nullableString($data['tipo'] ?? null),
             'observacoes' => self::nullableString($data['observacoes'] ?? null),
             'users_id' => (int) ($current['users_id'] ?? $data['users_id'] ?? Session::getLoginUserID()),
         ];
@@ -844,6 +892,8 @@ class Agendamento
                     'clientContact' => trim((string) ($agendamento['contato_cliente'] ?? '')),
                     'clientAddress' => trim((string) ($agendamento['endereco_cliente'] ?? '')),
                     'statusLabel' => self::getStatusLabel($status),
+                    'tipo' => trim((string) ($agendamento['tipo'] ?? '')),
+                    'tipoLabel' => self::getTipoLabel($agendamento['tipo'] ?? null),
                     'notes' => trim((string) ($agendamento['observacoes'] ?? '')),
                 ],
             ];
@@ -862,7 +912,7 @@ class Agendamento
         ];
     }
 
-    public static function getForTechnician(int $userId, string $statusFilter = '', int $limit = 50): array
+    public static function getForTechnician(int $userId, string $statusFilter = '', int $limit = 50, string $tipoFilter = ''): array
     {
         global $DB;
 
@@ -871,6 +921,9 @@ class Agendamento
         $where = [self::TABLE . '.users_id_tech' => $userId];
         if ($statusFilter !== '' && in_array($statusFilter, [self::STATUS_AGENDADO, self::STATUS_CONFIRMADO, self::STATUS_CANCELADO, self::STATUS_REALIZADO], true)) {
             $where[self::TABLE . '.status'] = $statusFilter;
+        }
+        if ($tipoFilter !== '') {
+            $where[self::TABLE . '.tipo'] = $tipoFilter;
         }
 
         $iterator = $DB->request([
@@ -936,7 +989,7 @@ class Agendamento
         return $rows;
     }
 
-    public static function getAllAgendamentos(string $statusFilter = '', ?int $techId = null, int $limit = 100): array
+    public static function getAllAgendamentos(string $statusFilter = '', ?int $techId = null, int $limit = 100, string $tipoFilter = ''): array
     {
         global $DB;
 
@@ -948,6 +1001,9 @@ class Agendamento
         }
         if ($techId !== null && $techId > 0) {
             $where[self::TABLE . '.users_id_tech'] = $techId;
+        }
+        if ($tipoFilter !== '') {
+            $where[self::TABLE . '.tipo'] = $tipoFilter;
         }
 
         $iterator = $DB->request([
@@ -1253,6 +1309,16 @@ class Agendamento
         echo "</select>";
         echo "</div>";
 
+        echo "<div class='col-md-6'>";
+        echo "<label for='plugin-agendamento-ticket-tipo' class='form-label'>" . htmlescape(__('Tipo', 'agendamento')) . "</label>";
+        echo "<select id='plugin-agendamento-ticket-tipo' name='agendamento_tipo' class='form-select'>";
+        echo "<option value=''>" . htmlescape(__('Não definido', 'agendamento')) . "</option>";
+        foreach (Config::getTipoOptions() as $tipoKey => $tipoLabel) {
+            echo "<option value='" . htmlescape($tipoKey) . "'>" . htmlescape($tipoLabel) . "</option>";
+        }
+        echo "</select>";
+        echo "</div>";
+
         echo "<div class='col-12'>";
         echo "<label for='plugin-agendamento-ticket-address' class='form-label'>" . htmlescape(__('Endereço do Cliente', 'agendamento')) . "</label>";
         echo "<textarea id='plugin-agendamento-ticket-address' name='agendamento_endereco_cliente' class='form-control' rows='2'>" . htmlescape($metadata['address']) . "</textarea>";
@@ -1392,6 +1458,16 @@ class Agendamento
         echo "</div>";
 
         echo "<div class='col-md-6'>";
+        echo "<label class='form-label'>" . htmlescape(__('Tipo', 'agendamento')) . "</label>";
+        echo "<select id='plugin-agendamento-tab-form-tipo' name='agendamento_tipo' class='form-select'>";
+        echo "<option value=''>" . htmlescape(__('Não definido', 'agendamento')) . "</option>";
+        foreach (Config::getTipoOptions() as $tipoKey => $tipoLabel) {
+            echo "<option value='" . htmlescape($tipoKey) . "'>" . htmlescape($tipoLabel) . "</option>";
+        }
+        echo "</select>";
+        echo "</div>";
+
+        echo "<div class='col-md-6'>";
         echo "<label for='plugin-agendamento-tab-form-start' class='form-label required'>" . htmlescape(__('Data Início', 'agendamento')) . "</label>";
         echo "<input type='datetime-local' id='plugin-agendamento-tab-form-start' name='agendamento_data_hora_inicio' class='form-control' required value='" . htmlescape($defaultDateTime['start']) . "' data-default='" . htmlescape($defaultDateTime['start']) . "'>";
         echo "</div>";
@@ -1449,6 +1525,7 @@ class Agendamento
             . " data-start='" . htmlescape($startAt !== false ? date('Y-m-d\TH:i', $startAt) : '') . "'"
             . " data-end='" . htmlescape($endAt !== false ? date('Y-m-d\TH:i', $endAt) : '') . "'"
             . " data-status='" . htmlescape($status) . "'"
+            . " data-tipo='" . htmlescape((string) ($agendamento['tipo'] ?? '')) . "'"
             . " data-contact='" . htmlescape((string) ($agendamento['contato_cliente'] ?? '')) . "'"
             . " data-address='" . htmlescape((string) ($agendamento['endereco_cliente'] ?? '')) . "'"
             . " data-notes='" . htmlescape((string) ($agendamento['observacoes'] ?? '')) . "'"
@@ -1457,6 +1534,9 @@ class Agendamento
         echo "<div class='d-flex align-items-start justify-content-between flex-wrap gap-2'>";
         echo "<div>";
         echo "<span class='badge mb-1' style='background-color:" . htmlescape($palette['background']) . ";color:" . htmlescape($palette['text']) . "'>" . htmlescape(self::getStatusLabel($status)) . "</span>";
+        if (trim((string) ($agendamento['tipo'] ?? '')) !== '') {
+            echo " <span class='badge bg-secondary-lt mb-1'>" . htmlescape((string) $agendamento['tipo']) . "</span>";
+        }
         echo "<div class='fw-bold fs-5'><i class='ti ti-clock me-1'></i>" . htmlescape($periodLabel) . "</div>";
         echo "</div>";
 
@@ -1552,13 +1632,15 @@ class Agendamento
         }
 
         $statusFilter = isset($_GET['status']) ? trim((string) $_GET['status']) : '';
+        $tipoFilter = isset($_GET['tipo']) ? trim((string) $_GET['tipo']) : '';
         $viewMode = isset($_GET['mode']) ? trim((string) $_GET['mode']) : 'list';
         if (!in_array($viewMode, ['list', 'calendar'], true)) {
             $viewMode = 'list';
         }
         $statusOptions = self::getStatusOptions();
+        $tipoOptions = Config::getTipoOptions();
 
-        $agendamentos = self::getForTechnician($targetUserId, $statusFilter);
+        $agendamentos = self::getForTechnician($targetUserId, $statusFilter, 50, $tipoFilter);
         $counts = ['total' => 0, self::STATUS_AGENDADO => 0, self::STATUS_CONFIRMADO => 0, self::STATUS_CANCELADO => 0, self::STATUS_REALIZADO => 0];
         $allAgendamentos = self::getForTechnician($targetUserId, '', 500);
         foreach ($allAgendamentos as $ag) {
@@ -1672,10 +1754,29 @@ class Agendamento
                 if ($filterKey !== '') {
                     $badgeParams['status'] = $filterKey;
                 }
+                if ($tipoFilter !== '') {
+                    $badgeParams['tipo'] = $tipoFilter;
+                }
                 echo "<div class='col-auto'>";
                 echo "<a href='" . htmlescape($buildUrl($badgeParams)) . "' class='btn btn-outline-" . $badge['color'] . $active . "'>";
                 echo htmlescape($badge['label']) . " <span class='badge bg-" . $badge['color'] . " ms-1'>" . $badge['count'] . "</span>";
                 echo "</a></div>";
+            }
+            if ($tipoOptions !== []) {
+                $tipoParamsBase = ['mode' => $viewMode];
+                if ($statusFilter !== '') {
+                    $tipoParamsBase['status'] = $statusFilter;
+                }
+                echo "<div class='col-auto'>";
+                echo "<select class='form-select form-select-sm' style='width:auto' onchange='if(this.value){window.location.href=this.value;}'>";
+                echo "<option value='" . htmlescape($buildUrl($tipoParamsBase)) . "'" . ($tipoFilter === '' ? ' selected' : '') . ">" . htmlescape(__('Todos os Tipos', 'agendamento')) . "</option>";
+                foreach ($tipoOptions as $tipoKey => $tipoLabel) {
+                    $optionParams = $tipoParamsBase;
+                    $optionParams['tipo'] = $tipoKey;
+                    echo "<option value='" . htmlescape($buildUrl($optionParams)) . "'" . ($tipoFilter === $tipoKey ? ' selected' : '') . ">" . htmlescape($tipoLabel) . "</option>";
+                }
+                echo "</select>";
+                echo "</div>";
             }
             ?>
         </div>
@@ -1712,6 +1813,7 @@ class Agendamento
                                     <th><?php echo htmlescape(__('Início', 'agendamento')); ?></th>
                                     <th><?php echo htmlescape(__('Fim', 'agendamento')); ?></th>
                                     <th><?php echo htmlescape(__('Status', 'agendamento')); ?></th>
+                                    <th><?php echo htmlescape(__('Tipo', 'agendamento')); ?></th>
                                     <th><?php echo htmlescape(__('Contato', 'agendamento')); ?></th>
                                     <th><?php echo htmlescape(__('Observações', 'agendamento')); ?></th>
                                 </tr>
@@ -1738,6 +1840,13 @@ class Agendamento
                                             <?php echo htmlescape(self::getStatusLabel($status)); ?>
                                         </span>
                                     </td>
+                                    <td>
+                                        <?php if (trim((string) ($ag['tipo'] ?? '')) !== '') { ?>
+                                            <span class="badge bg-secondary-lt"><?php echo htmlescape((string) $ag['tipo']); ?></span>
+                                        <?php } else { ?>
+                                            -
+                                        <?php } ?>
+                                    </td>
                                     <td><?php echo htmlescape(trim((string) ($ag['contato_cliente'] ?? '')) ?: '-'); ?></td>
                                     <td><?php echo htmlescape(mb_strimwidth(trim((string) ($ag['observacoes'] ?? '')), 0, 60, '...') ?: '-'); ?></td>
                                 </tr>
@@ -1755,6 +1864,12 @@ class Agendamento
         $options = self::getStatusOptions();
         $status = self::normalizeStatus($status);
         return $options[$status] ?? $options[self::STATUS_AGENDADO];
+    }
+
+    public static function getTipoLabel(?string $tipo): string
+    {
+        $tipo = trim((string) $tipo);
+        return $tipo !== '' ? $tipo : __('Não definido', 'agendamento');
     }
 
     private static function renderKpiCard(string $label, string $value): string
@@ -1882,6 +1997,7 @@ class Agendamento
             'data_hora_inicio' => __('Início', 'agendamento'),
             'data_hora_fim' => __('Fim', 'agendamento'),
             'status' => __('Status', 'agendamento'),
+            'tipo' => __('Tipo', 'agendamento'),
             'observacoes' => __('Observações', 'agendamento'),
         ];
 
@@ -2131,6 +2247,11 @@ class Agendamento
             sprintf(__('Fim: %s', 'agendamento'), self::formatDateTimeLabel((string) ($agendamento['data_hora_fim'] ?? ''))),
             sprintf(__('Status: %s', 'agendamento'), self::getStatusLabel((string) ($agendamento['status'] ?? self::STATUS_AGENDADO))),
         ];
+
+        $tipo = trim((string) ($agendamento['tipo'] ?? ''));
+        if ($tipo !== '') {
+            $lines[] = sprintf(__('Tipo: %s', 'agendamento'), $tipo);
+        }
 
         $notes = trim((string) ($agendamento['observacoes'] ?? ''));
         if ($notes !== '') {
@@ -2391,6 +2512,7 @@ class Agendamento
         $start = self::normalizeDateTime((string) ($data['agendamento_data_hora_inicio'] ?? ''));
         $end = self::normalizeDateTime((string) ($data['agendamento_data_hora_fim'] ?? ''));
         $status = self::normalizeStatus((string) ($data['agendamento_status'] ?? self::STATUS_AGENDADO));
+        $tipo = self::nullableString($data['agendamento_tipo'] ?? null);
         $notes = self::nullableString($data['agendamento_observacoes'] ?? null);
 
         if ($ticketId <= 0) {
@@ -2428,6 +2550,7 @@ class Agendamento
             'data_hora_inicio' => $start,
             'data_hora_fim' => $end,
             'status' => $status,
+            'tipo' => $tipo,
             'observacoes' => $notes,
             'users_id' => (int) Session::getLoginUserID(),
         ];
@@ -2454,6 +2577,9 @@ class Agendamento
             if (!$DB->fieldExists(self::TABLE, 'endereco_cliente')) {
                 $DB->doQuery("ALTER TABLE `" . self::TABLE . "` ADD COLUMN `endereco_cliente` text DEFAULT NULL AFTER `contato_cliente`");
             }
+            if (!$DB->fieldExists(self::TABLE, 'tipo')) {
+                $DB->doQuery("ALTER TABLE `" . self::TABLE . "` ADD COLUMN `tipo` varchar(100) DEFAULT NULL AFTER `status`");
+            }
             return;
         }
 
@@ -2471,6 +2597,7 @@ class Agendamento
             `data_hora_inicio` datetime NOT NULL,
             `data_hora_fim` datetime DEFAULT NULL,
             `status` varchar(50) NOT NULL DEFAULT 'agendado',
+            `tipo` varchar(100) DEFAULT NULL,
             `observacoes` text DEFAULT NULL,
             `users_id` int " . $defaultKeySign . " NOT NULL DEFAULT 0,
             `tickettasks_id` int " . $defaultKeySign . " NOT NULL DEFAULT 0,

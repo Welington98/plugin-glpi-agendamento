@@ -31,6 +31,7 @@
                     $("select[name='agendamento_users_id_tech']").val('0').trigger('change');
                     
                     $('#agendamento_status').val('agendado');
+                    $('#agendamento_tipo').val('');
                     $('#agendamento_observacoes').val('');
                     $('#agendamento_contato_cliente').val('');
                     $('#agendamento_endereco_cliente').val('');
@@ -86,6 +87,7 @@
         const ticketInput = document.querySelector("select[name='agendamento_tickets_id']");
         const technicianInput = document.querySelector("select[name='agendamento_users_id_tech']");
         const statusInput = document.getElementById('agendamento_status');
+        const tipoInput = document.getElementById('agendamento_tipo');
         const notesInput = document.getElementById('agendamento_observacoes');
         const clientContactInput = document.getElementById('agendamento_contato_cliente');
         const clientAddressInput = document.getElementById('agendamento_endereco_cliente');
@@ -93,6 +95,7 @@
         const endInput = document.getElementById('agendamento_data_hora_fim');
         const detailTitle = document.getElementById('plugin-agendamento-detail-title');
         const detailStatus = document.getElementById('plugin-agendamento-detail-status');
+        const detailTipo = document.getElementById('plugin-agendamento-detail-tipo');
         const detailTime = document.getElementById('plugin-agendamento-detail-time');
         const detailTech = document.getElementById('plugin-agendamento-detail-tech');
         const detailContact = document.getElementById('plugin-agendamento-detail-contact');
@@ -413,6 +416,9 @@
         if (statusInput) {
             statusInput.value = 'agendado';
         }
+        if (tipoInput) {
+            tipoInput.value = '';
+        }
         if (notesInput) {
             notesInput.value = '';
         }
@@ -455,6 +461,9 @@
         setSelectValue(technicianInput, String(props.users_id_tech || '0'));
         if (statusInput) {
             statusInput.value = String(props.status || 'agendado');
+        }
+        if (tipoInput) {
+            tipoInput.value = String(props.tipo || '');
         }
         if (notesInput) {
             notesInput.value = props.notes || '';
@@ -689,6 +698,9 @@
             toggleCancelPanel(false);
             detailTitle.textContent = info.event.title || config.texts.detailsTitle;
             detailStatus.textContent = props.statusLabel || '';
+            if (detailTipo) {
+                detailTipo.textContent = props.tipoLabel || '-';
+            }
             detailStatus.style.backgroundColor = info.event.backgroundColor || '#3b82f6';
             detailStatus.style.color = info.event.textColor || '#ffffff';
             detailTime.textContent = formatEventTime(info.event.start, info.event.end);

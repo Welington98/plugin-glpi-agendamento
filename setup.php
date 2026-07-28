@@ -17,6 +17,9 @@ function plugin_agendamento_check_schema()
     if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'google_event_id')) {
         $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `google_event_id` varchar(255) DEFAULT NULL");
     }
+    if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'tipo')) {
+        $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `tipo` varchar(100) DEFAULT NULL AFTER `status`");
+    }
 
     if (!$DB->tableExists('glpi_plugin_agendamento_google_tokens')) {
         $DB->doQuery("CREATE TABLE `glpi_plugin_agendamento_google_tokens` (
