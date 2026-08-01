@@ -1,6 +1,7 @@
 <?php
 
 use GlpiPlugin\Agendamento\Agendamento;
+use GlpiPlugin\Agendamento\GoogleCalendarAuth;
 
 include '../../../inc/includes.php';
 
@@ -14,6 +15,16 @@ if (!Session::haveRight('plugin_agendamento', READ)) {
     echo json_encode([
         'success' => false,
         'message' => __('Acesso negado.', 'agendamento'),
+    ]);
+    exit;
+}
+
+if (GoogleCalendarAuth::isConnectionRequired(Session::getLoginUserID())) {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode([
+        'success' => false,
+        'message' => __('Conecte sua conta do Google Calendar antes de continuar.', 'agendamento'),
     ]);
     exit;
 }

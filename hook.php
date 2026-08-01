@@ -21,6 +21,15 @@ function plugin_agendamento_display_central()
     GlpiPlugin\Agendamento\Agendamento::showCentralWidget();
 }
 
+function plugin_agendamento_dashboard_cards($cards = [])
+{
+    if (!is_array($cards)) {
+        $cards = [];
+    }
+
+    return GlpiPlugin\Agendamento\Dashboard::getCards($cards);
+}
+
 function plugin_agendamento_uninstall()
 {
     global $DB;
@@ -57,6 +66,9 @@ function plugin_agendamento_install_tables(Migration $migration)
         }
         if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'tipo')) {
             $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `tipo` varchar(100) DEFAULT NULL AFTER `status`");
+        }
+        if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'reminder_sent')) {
+            $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `reminder_sent` datetime DEFAULT NULL");
         }
 
         if (!$DB->tableExists('glpi_plugin_agendamento_google_tokens')) {
@@ -108,6 +120,7 @@ function plugin_agendamento_install_tables(Migration $migration)
         `tickettasks_id` int {$defaultKeySign} NOT NULL DEFAULT 0,
         `google_event_id` varchar(255) DEFAULT NULL,
         `motivo_reagendamento` text DEFAULT NULL,
+        `reminder_sent` datetime DEFAULT NULL,
         `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
         `date_mod` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),

@@ -1,6 +1,7 @@
 <?php
 
 use GlpiPlugin\Agendamento\Agendamento;
+use GlpiPlugin\Agendamento\GoogleCalendarAuth;
 
 include '../../../inc/includes.php';
 
@@ -23,6 +24,10 @@ Html::header(
 
 echo Html::css('lib/fullcalendar.css');
 
-Agendamento::showMeusAgendamentos();
+if (GoogleCalendarAuth::isConnectionRequired(Session::getLoginUserID())) {
+    Agendamento::renderGoogleConnectionRequiredScreen();
+} else {
+    Agendamento::showMeusAgendamentos();
+}
 
 Html::footer();

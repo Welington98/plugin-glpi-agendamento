@@ -1,6 +1,7 @@
 <?php
 
 use GlpiPlugin\Agendamento\Agendamento;
+use GlpiPlugin\Agendamento\GoogleCalendarAuth;
 
 include '../../../inc/includes.php';
 
@@ -9,6 +10,18 @@ Html::requireJs('fullcalendar');
 
 if (!Session::haveRight('plugin_agendamento', READ)) {
     Html::displayRightError();
+    exit;
+}
+
+if (GoogleCalendarAuth::isConnectionRequired(Session::getLoginUserID())) {
+    Html::header(
+        __('Agendamento', 'agendamento'),
+        $_SERVER['PHP_SELF'],
+        'plugins',
+        'GlpiPlugin\Agendamento\MenuAgendamento'
+    );
+    Agendamento::renderGoogleConnectionRequiredScreen();
+    Html::footer();
     exit;
 }
 

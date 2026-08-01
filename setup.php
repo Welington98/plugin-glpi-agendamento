@@ -20,6 +20,9 @@ function plugin_agendamento_check_schema()
     if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'tipo')) {
         $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `tipo` varchar(100) DEFAULT NULL AFTER `status`");
     }
+    if (!$DB->fieldExists('glpi_plugin_agendamento_agendamentos', 'reminder_sent')) {
+        $DB->doQuery("ALTER TABLE `glpi_plugin_agendamento_agendamentos` ADD COLUMN `reminder_sent` datetime DEFAULT NULL");
+    }
 
     if (!$DB->tableExists('glpi_plugin_agendamento_google_tokens')) {
         $DB->doQuery("CREATE TABLE `glpi_plugin_agendamento_google_tokens` (
@@ -67,6 +70,7 @@ function plugin_init_agendamento()
     Plugin::registerClass('GlpiPlugin\\Agendamento\\GoogleCalendarSync');
     Plugin::registerClass('GlpiPlugin\\Agendamento\\Profile', ['addtabon' => 'Profile']);
     Plugin::registerClass('GlpiPlugin\\Agendamento\\TicketAgendamento', ['addtabon' => 'Ticket']);
+    Plugin::registerClass('GlpiPlugin\\Agendamento\\AgendamentoItem', ['notificationtemplates_types' => true]);
 
     if (isset($DB) && $DB->connected) {
         plugin_agendamento_check_schema();
@@ -76,6 +80,16 @@ function plugin_init_agendamento()
         if (empty($hasRights)) {
             \GlpiPlugin\Agendamento\Profile::installRights();
         }
+
+        CronTask::register(
+            'GlpiPlugin\\Agendamento\\CronTaskAgendamento',
+            \GlpiPlugin\Agendamento\CronTaskAgendamento::TASK_NAME,
+            HOUR_TIMESTAMP,
+            [
+                'comment' => __('Envia lembretes de agendamentos futuros', 'agendamento'),
+                'mode' => CronTask::MODE_EXTERNAL,
+            ]
+        );
     }
 
     if (Session::getLoginUserID() && Session::haveRight('plugin_agendamento', READ)) {
@@ -86,6 +100,7 @@ function plugin_init_agendamento()
         $PLUGIN_HOOKS[Glpi\Plugin\Hooks::DISPLAY_CENTRAL]['agendamento'] = 'plugin_agendamento_display_central';
         $PLUGIN_HOOKS[Glpi\Plugin\Hooks::TIMELINE_ACTIONS]['agendamento'] = 'plugin_agendamento_timeline_actions';
         $PLUGIN_HOOKS[Glpi\Plugin\Hooks::POST_SHOW_ITEM]['agendamento'] = 'plugin_agendamento_post_show_item';
+        $PLUGIN_HOOKS[Glpi\Plugin\Hooks::DASHBOARD_CARDS]['agendamento'] = 'plugin_agendamento_dashboard_cards';
     }
 }
 
