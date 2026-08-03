@@ -1,3 +1,10 @@
+## [1.11.1](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.11.0...v1.11.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* sincroniza horário final com a duração padrão configurada ([fe34a71](https://github.com/Welington98/plugin-glpi-agendamento/commit/fe34a713c84658dc70f186571d1c0307feb0a120))
+
 # [1.11.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.10.0...v1.11.0) (2026-08-03)
 
 
