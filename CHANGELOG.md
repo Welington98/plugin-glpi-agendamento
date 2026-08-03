@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.10.0...v1.11.0) (2026-08-03)
+
+
+### Features
+
+* adiciona notificações nativas, detecção de conflito, lembretes automáticos, dashboard e conexão obrigatória com Google ([2246433](https://github.com/Welington98/plugin-glpi-agendamento/commit/2246433859b970c44b1d65661045d38711aa2a6f))
+
 # [1.10.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.9.0...v1.10.0) (2026-07-28)
 
 
