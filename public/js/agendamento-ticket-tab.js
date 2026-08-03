@@ -52,7 +52,9 @@
             return;
         }
         const storedDuration = Number.parseInt(endInput.dataset.duration || '', 10);
-        const durationMs = Number.isFinite(storedDuration) && storedDuration > 0 ? storedDuration : 60 * 60000;
+        const configuredMinutes = Number.parseInt(endInput.dataset.defaultDurationMinutes || '', 10);
+        const fallbackMs = (Number.isFinite(configuredMinutes) && configuredMinutes > 0 ? configuredMinutes : 60) * 60000;
+        const durationMs = Number.isFinite(storedDuration) && storedDuration > 0 ? storedDuration : fallbackMs;
         const newEnd = new Date(start.getTime() + durationMs);
         const pad = (value) => String(value).padStart(2, '0');
         endInput.value = `${newEnd.getFullYear()}-${pad(newEnd.getMonth() + 1)}-${pad(newEnd.getDate())}T${pad(newEnd.getHours())}:${pad(newEnd.getMinutes())}`;
@@ -190,15 +192,15 @@
         showModal(modalElement);
     };
 
-    const tabFormStartInput = document.getElementById('plugin-agendamento-tab-form-start');
-    const tabFormEndInput = document.getElementById('plugin-agendamento-tab-form-end');
-    captureDuration(tabFormStartInput, tabFormEndInput);
-    if (tabFormEndInput) {
-        tabFormEndInput.addEventListener('change', () => captureDuration(tabFormStartInput, tabFormEndInput));
-    }
-    if (tabFormStartInput) {
-        tabFormStartInput.addEventListener('change', () => shiftEndForNewStart(tabFormStartInput, tabFormEndInput));
-    }
+    document.addEventListener('change', (event) => {
+        if (event.target.id === 'plugin-agendamento-tab-form-end') {
+            captureDuration(document.getElementById('plugin-agendamento-tab-form-start'), event.target);
+            return;
+        }
+        if (event.target.id === 'plugin-agendamento-tab-form-start') {
+            shiftEndForNewStart(event.target, document.getElementById('plugin-agendamento-tab-form-end'));
+        }
+    });
 
     document.addEventListener('click', (event) => {
         const newButton = event.target.closest('.plugin-agendamento-tab-new-btn');

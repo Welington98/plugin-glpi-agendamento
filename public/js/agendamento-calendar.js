@@ -1,4 +1,14 @@
 (function () {
+    const getDefaultDurationMs = () => {
+        try {
+            const el = document.getElementById('plugin-agendamento-calendar');
+            const cfg = JSON.parse((el && el.dataset.config) || '{}');
+            return (cfg.defaultEventDuration || 60) * 60000;
+        } catch (error) {
+            return 60 * 60000;
+        }
+    };
+
     const bindModalControls = () => {
         // We use Bootstrap 5 Modals via jQuery which GLPI supports
         // Fix for Select2 inside Bootstrap Modal (Focus issue)
@@ -18,7 +28,7 @@
                     const defaultStart = new Date();
                     defaultStart.setMinutes(0, 0, 0);
                     defaultStart.setHours(defaultStart.getHours() + 1);
-                    const defaultEnd = new Date(defaultStart.getTime() + 60 * 60 * 1000);
+                    const defaultEnd = new Date(defaultStart.getTime() + getDefaultDurationMs());
 
                     // Form reset logic
                     $('#plugin-agendamento-form-action').val('create');
@@ -146,7 +156,7 @@
                 return;
             }
             const storedDuration = Number.parseInt(endInput.dataset.duration || '', 10);
-            const durationMs = Number.isFinite(storedDuration) && storedDuration > 0 ? storedDuration : 60 * 60000;
+            const durationMs = Number.isFinite(storedDuration) && storedDuration > 0 ? storedDuration : (config.defaultEventDuration || 60) * 60000;
             endInput.value = toInputValue(new Date(start.getTime() + durationMs));
             endInput.dataset.duration = String(durationMs);
         });
@@ -434,7 +444,7 @@
             startInput.value = toInputValue(start);
         }
         if (endInput) {
-            endInput.value = toInputValue(end || new Date(start.getTime() + 60 * 60 * 1000));
+            endInput.value = toInputValue(end || new Date(start.getTime() + (config.defaultEventDuration || 60) * 60000));
         }
         captureDuration();
         $(createModal).modal('show');
@@ -480,7 +490,7 @@
             startInput.value = toInputValue(event.start);
         }
         if (endInput) {
-            endInput.value = event.end ? toInputValue(event.end) : toInputValue(new Date(event.start.getTime() + 60 * 60 * 1000));
+            endInput.value = event.end ? toInputValue(event.end) : toInputValue(new Date(event.start.getTime() + (config.defaultEventDuration || 60) * 60000));
         }
         captureDuration();
 
@@ -688,7 +698,7 @@
         dateClick: (info) => {
             if (calendar.view.type === 'dayGridMonth') {
                 const start = new Date(`${info.dateStr}T09:00:00`);
-                const end = new Date(start.getTime() + 60 * 60 * 1000);
+                const end = new Date(start.getTime() + (config.defaultEventDuration || 60) * 60000);
                 prefillCreateForm(start, end);
             }
         },
