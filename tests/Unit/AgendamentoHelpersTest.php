@@ -158,4 +158,38 @@ final class AgendamentoHelpersTest extends TestCase
     {
         $this->assertSame('#42 - Impressora não liga', self::invokePrivate('formatTicketLabel', [42, 'Impressora não liga']));
     }
+
+    public function testEffectiveEndTimestampUsesDefaultDurationWhenEndIsFalse(): void
+    {
+        $start = mktime(9, 0, 0, 7, 17, 2026);
+
+        $this->assertSame($start + 1800, self::invokePrivate('effectiveEndTimestamp', [$start, false, 30]));
+    }
+
+    public function testEffectiveEndTimestampUsesDefaultDurationWhenEndIsBeforeOrEqualStart(): void
+    {
+        $start = mktime(9, 0, 0, 7, 17, 2026);
+
+        $this->assertSame($start + 3600, self::invokePrivate('effectiveEndTimestamp', [$start, $start, 60]));
+        $this->assertSame($start + 3600, self::invokePrivate('effectiveEndTimestamp', [$start, $start - 100, 60]));
+    }
+
+    public function testEffectiveEndTimestampReturnsGivenEndWhenAfterStart(): void
+    {
+        $start = mktime(9, 0, 0, 7, 17, 2026);
+        $end = mktime(10, 30, 0, 7, 17, 2026);
+
+        $this->assertSame($end, self::invokePrivate('effectiveEndTimestamp', [$start, $end, 60]));
+    }
+
+    public function testBuildConflictMessageMentionsTicketAndStart(): void
+    {
+        $message = self::invokePrivate('buildConflictMessage', [[
+            'tickets_id' => 42,
+            'data_hora_inicio' => '2026-07-17 09:00:00',
+        ]]);
+
+        $this->assertStringContainsString('#42', $message);
+        $this->assertStringContainsString('17/07/2026 09:00', $message);
+    }
 }

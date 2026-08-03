@@ -25,6 +25,7 @@ class Config extends CommonDBTM
         'default_event_duration' => 60,
         'auto_create_task' => 1,
         'notify_technician' => 0,
+        'reminder_hours_before' => 24,
         'calendar_height' => 650,
         'business_days' => '1,2,3,4,5',
         'technician_profile_ids' => '',
@@ -33,6 +34,7 @@ class Config extends CommonDBTM
         'google_client_secret' => '',
         'google_sync_enabled' => 0,
         'google_calendar_id' => 'primary',
+        'google_force_connection' => 0,
     ];
 
     public static function getTypeName($nb = 0)
@@ -238,10 +240,17 @@ class Config extends CommonDBTM
         echo "</td></tr>";
 
         echo "<tr class='tab_bg_1'>";
-        echo "<td><label for='notify_technician'><i class='ti ti-bell me-1'></i>" . __('Notificar técnico ao criar agendamento', 'agendamento') . "</label></td>";
+        echo "<td><label for='notify_technician'><i class='ti ti-bell me-1'></i>" . __('Notificar técnico e solicitante nos eventos do agendamento', 'agendamento') . "</label></td>";
         echo "<td>";
         Dropdown::showYesNo('notify_technician', $config['notify_technician']);
-        echo "</td></tr>";
+        echo "&nbsp;<small>" . __('Os modelos de e-mail são configurados nativamente em Configurar > Notificações.', 'agendamento') . "</small></td>";
+        echo "</tr>";
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td><label for='reminder_hours_before'><i class='ti ti-alarm me-1'></i>" . __('Enviar lembrete X horas antes do agendamento', 'agendamento') . "</label></td>";
+        echo "<td><input type='number' id='reminder_hours_before' name='reminder_hours_before' value='" . (int) $config['reminder_hours_before'] . "' min='1' max='168' step='1' class='form-control' style='width:200px;display:inline-block'>";
+        echo "&nbsp;<small>" . __('A execução da ação automática é controlada em Configurar > Ações automáticas.', 'agendamento') . "</small></td>";
+        echo "</tr>";
 
         echo "</table><br>";
 
@@ -253,6 +262,13 @@ class Config extends CommonDBTM
         echo "<td>";
         Dropdown::showYesNo('google_sync_enabled', $config['google_sync_enabled']);
         echo "</td></tr>";
+
+        echo "<tr class='tab_bg_1'>";
+        echo "<td><label for='google_force_connection'><i class='ti ti-lock me-1'></i>" . __('Forçar conexão do técnico com o Google Calendar', 'agendamento') . "</label></td>";
+        echo "<td>";
+        Dropdown::showYesNo('google_force_connection', $config['google_force_connection']);
+        echo "&nbsp;<small>" . __('Se ativado (e a sincronização acima estiver habilitada), o técnico não conseguirá ver nem criar/editar agendamentos até conectar sua conta Google.', 'agendamento') . "</small></td>";
+        echo "</tr>";
 
         echo "<tr class='tab_bg_1'>";
         echo "<td><label for='google_client_id'><i class='ti ti-key me-1'></i>" . __('Google Client ID', 'agendamento') . "</label></td>";
@@ -326,11 +342,13 @@ echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='
             'default_event_duration' => max(15, min(480, (int) ($input['default_event_duration'] ?? 60))),
             'auto_create_task' => (int) ($input['auto_create_task'] ?? 1),
             'notify_technician' => (int) ($input['notify_technician'] ?? 0),
+            'reminder_hours_before' => max(1, min(168, (int) ($input['reminder_hours_before'] ?? 24))),
             'calendar_height' => max(400, min(1200, (int) ($input['calendar_height'] ?? 650))),
             'business_days' => $businessDays,
             'technician_profile_ids' => implode(',', $technicianProfileIds),
             'agendamento_tipos' => implode("\n", $agendamentoTipos),
             'google_sync_enabled' => (int) ($input['google_sync_enabled'] ?? 0),
+            'google_force_connection' => (int) ($input['google_force_connection'] ?? 0),
             'google_client_id' => trim((string) ($input['google_client_id'] ?? '')),
             'google_calendar_id' => trim((string) ($input['google_calendar_id'] ?? 'primary')) ?: 'primary',
         ];

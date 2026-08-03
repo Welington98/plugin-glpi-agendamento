@@ -7,8 +7,10 @@ use DateInterval;
 use DateTimeImmutable;
 use Dropdown;
 use Html;
+use NotificationEvent;
 use Session;
 use Ticket as GlpiTicket;
+use Toolbox;
 use User;
 
 use GlpiPlugin\Agendamento\GoogleCalendarAuth;
@@ -603,6 +605,7 @@ class Agendamento
         global $DB;
 
         self::ensureTableExists();
+        self::assertGoogleConnectionAllowed();
 
         $ticketId = (int) ($data['tickets_id'] ?? 0);
         $technicianId = (int) ($data['users_id_tech'] ?? 0);
@@ -611,6 +614,11 @@ class Agendamento
 
         if ($ticketId <= 0 || $technicianId <= 0 || $start === null) {
             throw new \RuntimeException(__('Dados obrigatórios do agendamento não informados.', 'agendamento'));
+        }
+
+        $conflict = self::findConflict($technicianId, $start, $end);
+        if ($conflict !== null) {
+            throw new \RuntimeException(self::buildConflictMessage($conflict));
         }
 
         $DB->insert(self::TABLE, [
@@ -637,6 +645,7 @@ class Agendamento
 
         self::syncLinkedTask($agendamentoId);
         self::syncGoogleCalendar($agendamentoId);
+        self::notify('new', $agendamentoId);
         return $agendamentoId;
     }
 
@@ -645,6 +654,7 @@ class Agendamento
         global $DB;
 
         self::ensureTableExists();
+        self::assertGoogleConnectionAllowed();
 
         if ($agendamentoId <= 0) {
             throw new \RuntimeException(__('Agendamento inválido.', 'agendamento'));
@@ -662,6 +672,11 @@ class Agendamento
 
         if ($ticketId <= 0 || $technicianId <= 0 || $start === null) {
             throw new \RuntimeException(__('Dados obrigatórios do agendamento não informados.', 'agendamento'));
+        }
+
+        $conflict = self::findConflict($technicianId, $start, $end, $agendamentoId);
+        if ($conflict !== null) {
+            throw new \RuntimeException(self::buildConflictMessage($conflict));
         }
 
         $novosDados = [
@@ -685,6 +700,7 @@ class Agendamento
         $diff = self::diffFields($current, $novosDados);
         if ($diff !== '') {
             self::logHistory($agendamentoId, $ticketId, 'atualizado', $diff);
+            self::notify('update', $agendamentoId);
         }
 
         self::syncLinkedTask($agendamentoId);
@@ -696,6 +712,7 @@ class Agendamento
         global $DB;
 
         self::ensureTableExists();
+        self::assertGoogleConnectionAllowed();
 
         if ($ticketId <= 0 || $agendamentoId <= 0) {
             throw new \RuntimeException(__('Agendamento inválido.', 'agendamento'));
@@ -739,6 +756,7 @@ class Agendamento
 
             if ($status === self::STATUS_CANCELADO) {
                 self::registerCancellationFollowup($ticketId, $agendamento, $cancelReason);
+                self::notify('cancel', $agendamentoId, ['cancel_reason' => $cancelReason]);
             }
 
             self::syncLinkedTask($agendamentoId);
@@ -761,6 +779,7 @@ class Agendamento
         global $DB;
 
         self::ensureTableExists();
+        self::assertGoogleConnectionAllowed();
 
         $start = self::normalizeDateTime($startDateTime);
         $end = self::normalizeDateTime($endDateTime ?? '');
@@ -777,9 +796,18 @@ class Agendamento
 
         $dadosAnteriores = $DB->request(['FROM' => self::TABLE, 'WHERE' => ['id' => $agendamentoId, 'tickets_id' => $ticketId]])->current();
 
+        $technicianId = (int) ($dadosAnteriores['users_id_tech'] ?? 0);
+        if ($technicianId > 0) {
+            $conflict = self::findConflict($technicianId, $start, $end, $agendamentoId);
+            if ($conflict !== null) {
+                throw new \RuntimeException(self::buildConflictMessage($conflict));
+            }
+        }
+
         $updateData = [
             'data_hora_inicio' => $start,
             'data_hora_fim' => $end,
+            'reminder_sent' => null,
         ];
 
         if ($motivoNormalizado !== null) {
@@ -801,6 +829,7 @@ class Agendamento
                 $descricao .= "\n" . sprintf(__('Motivo: %s', 'agendamento'), $motivoNormalizado);
             }
             self::logHistory($agendamentoId, $ticketId, 'reagendado', $descricao);
+            self::notify('update', $agendamentoId, ['reschedule_reason' => $motivoNormalizado ?? '']);
         }
 
         if ($dadosAnteriores && $motivoNormalizado !== null) {
@@ -1125,13 +1154,10 @@ class Agendamento
             }
 
             $start = strtotime((string) ($agendamento['data_hora_inicio'] ?? ''));
-            $end = strtotime((string) ($agendamento['data_hora_fim'] ?? ''));
             if ($start === false) {
                 continue;
             }
-            if ($end === false || $end <= $start) {
-                $end = $start + ($durationMinutes * 60);
-            }
+            $end = self::effectiveEndTimestamp($start, strtotime((string) ($agendamento['data_hora_fim'] ?? '')), $durationMinutes);
 
             $busyIntervals[] = [
                 'start' => max($start, $dayStart),
@@ -1185,12 +1211,213 @@ class Agendamento
         return $slots;
     }
 
+    public static function findConflict(int $technicianId, string $start, ?string $end, ?int $excludeAgendamentoId = null): ?array
+    {
+        if ($technicianId <= 0) {
+            return null;
+        }
+
+        $startTs = strtotime($start);
+        if ($startTs === false) {
+            return null;
+        }
+
+        $config = Config::getConfig();
+        $defaultDurationMinutes = (int) ($config['default_event_duration'] ?? 60);
+        if ($defaultDurationMinutes <= 0) {
+            $defaultDurationMinutes = 60;
+        }
+
+        $endTs = self::effectiveEndTimestamp($startTs, $end !== null && $end !== '' ? strtotime($end) : false, $defaultDurationMinutes);
+
+        $day = date('Y-m-d', $startTs);
+        $windowStart = date('Y-m-d H:i:s', strtotime($day . ' 00:00:00'));
+        $windowEnd = date('Y-m-d H:i:s', strtotime($day . ' +2 day 00:00:00'));
+
+        foreach (self::getForPeriod($windowStart, $windowEnd, $technicianId) as $agendamento) {
+            $status = self::normalizeStatus((string) ($agendamento['status'] ?? ''));
+            if ($status === self::STATUS_CANCELADO) {
+                continue;
+            }
+
+            $existingId = (int) ($agendamento['id'] ?? 0);
+            if ($excludeAgendamentoId !== null && $existingId === $excludeAgendamentoId) {
+                continue;
+            }
+
+            $existingStart = strtotime((string) ($agendamento['data_hora_inicio'] ?? ''));
+            if ($existingStart === false) {
+                continue;
+            }
+            $existingEnd = self::effectiveEndTimestamp(
+                $existingStart,
+                strtotime((string) ($agendamento['data_hora_fim'] ?? '')),
+                $defaultDurationMinutes
+            );
+
+            if ($existingStart < $endTs && $startTs < $existingEnd) {
+                return $agendamento;
+            }
+        }
+
+        return null;
+    }
+
+    private static function effectiveEndTimestamp(int $start, $end, int $defaultDurationMinutes): int
+    {
+        if ($end === false || $end <= $start) {
+            return $start + ($defaultDurationMinutes * 60);
+        }
+
+        return $end;
+    }
+
+    private static function buildConflictMessage(array $conflict): string
+    {
+        return sprintf(
+            __('Conflito de horário: o técnico já possui o agendamento do chamado #%d em %s.', 'agendamento'),
+            (int) ($conflict['tickets_id'] ?? 0),
+            self::formatDateTimeLabel((string) ($conflict['data_hora_inicio'] ?? ''))
+        );
+    }
+
+    private static function assertGoogleConnectionAllowed(): void
+    {
+        if (GoogleCalendarAuth::isConnectionRequired((int) Session::getLoginUserID())) {
+            throw new \RuntimeException(__('Conecte sua conta do Google Calendar antes de criar ou alterar agendamentos. Acesse "Meus Agendamentos" para conectar.', 'agendamento'));
+        }
+    }
+
+    private static function notify(string $event, int $agendamentoId, array $extra = []): void
+    {
+        if ((int) Config::getConfigValue('notify_technician', 0) !== 1) {
+            return;
+        }
+
+        try {
+            $item = new AgendamentoItem();
+            if (!$item->getFromDB($agendamentoId)) {
+                return;
+            }
+
+            $agendamento = self::getById($agendamentoId);
+            if ($agendamento === null) {
+                return;
+            }
+
+            NotificationEvent::raiseEvent($event, $item, array_merge(
+                ['agendamento' => $agendamento],
+                $extra
+            ));
+        } catch (\Throwable $e) {
+            Toolbox::logInFile('plugin_agendamento', sprintf("Falha ao notificar (evento=%s, agendamento=%d): %s\n", $event, $agendamentoId, $e->getMessage()));
+        }
+    }
+
+    public static function getPendingReminders(string $windowStart, string $windowEnd): array
+    {
+        global $DB;
+
+        self::ensureTableExists();
+
+        $iterator = $DB->request([
+            'FROM' => self::TABLE,
+            'WHERE' => [
+                'status' => ['<>', self::STATUS_CANCELADO],
+                'reminder_sent' => null,
+                'data_hora_inicio' => ['>=', $windowStart],
+                ['data_hora_inicio' => ['<=', $windowEnd]],
+            ],
+            'ORDER' => ['data_hora_inicio ASC'],
+        ]);
+
+        $result = [];
+        foreach ($iterator as $row) {
+            $result[] = $row;
+        }
+
+        return $result;
+    }
+
+    public static function sendReminder(int $agendamentoId): void
+    {
+        global $DB;
+
+        self::notify('reminder', $agendamentoId);
+
+        $DB->update(self::TABLE, [
+            'reminder_sent' => date('Y-m-d H:i:s'),
+        ], [
+            'id' => $agendamentoId,
+        ]);
+    }
+
+    public static function renderGoogleConnectionRequiredScreen(): void
+    {
+        global $CFG_GLPI;
+
+        $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
+        $connectUrl = $rootDoc . '/plugins/agendamento/front/google_action.php?action=connect&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true));
+        ?>
+        <div class="card shadow-sm mx-auto mt-4" style="max-width: 640px;">
+            <div class="card-body text-center py-5">
+                <i class="ti ti-brand-google-filled" style="font-size: 3rem; opacity: .6;"></i>
+                <h3 class="mt-3"><?php echo htmlescape(__('Conecte sua agenda do Google Calendar', 'agendamento')); ?></h3>
+                <p class="text-muted">
+                    <?php echo htmlescape(__('Para acessar e gerenciar seus agendamentos, conecte sua conta do Google Calendar. Isso mantém sua agenda sempre sincronizada.', 'agendamento')); ?>
+                </p>
+                <a href="<?php echo htmlescape($connectUrl); ?>" class="btn btn-primary mt-2">
+                    <i class="ti ti-brand-google me-1"></i><?php echo htmlescape(__('Conectar Google Calendar', 'agendamento')); ?>
+                </a>
+            </div>
+        </div>
+        <?php
+    }
+
+    private static function renderGoogleConnectionRequiredModalBody(): void
+    {
+        global $CFG_GLPI;
+
+        $rootDoc = rtrim((string) ($CFG_GLPI['root_doc'] ?? ''), '/');
+        $connectUrl = $rootDoc . '/plugins/agendamento/front/google_action.php?action=connect&_glpi_csrf_token=' . urlencode(Session::getNewCSRFToken(true));
+        ?>
+        <div class="modal-body text-center py-5">
+            <i class="ti ti-brand-google-filled" style="font-size: 3rem; opacity: .6;"></i>
+            <h5 class="mt-3"><?php echo htmlescape(__('Conecte sua agenda do Google Calendar', 'agendamento')); ?></h5>
+            <p class="text-muted">
+                <?php echo htmlescape(__('Você precisa conectar sua conta do Google Calendar antes de criar agendamentos.', 'agendamento')); ?>
+            </p>
+            <a href="<?php echo htmlescape($connectUrl); ?>" class="btn btn-primary mt-2">
+                <i class="ti ti-brand-google me-1"></i><?php echo htmlescape(__('Conectar Google Calendar', 'agendamento')); ?>
+            </a>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?php echo htmlescape(__('Fechar', 'agendamento')); ?></button>
+        </div>
+        <?php
+    }
+
     public static function renderTicketCreateModal(GlpiTicket $ticket): void
     {
         global $CFG_GLPI;
 
         $ticketId = (int) $ticket->getID();
         if ($ticketId <= 0) {
+            return;
+        }
+
+        if (GoogleCalendarAuth::isConnectionRequired((int) Session::getLoginUserID())) {
+            echo "<div class='modal fade' id='plugin-agendamento-ticket-modal' tabindex='-1' aria-hidden='true'>";
+            echo "<div class='modal-dialog modal-dialog-centered'>";
+            echo "<div class='modal-content'>";
+            echo "<div class='modal-header'>";
+            echo "<h5 class='modal-title'><i class='ti ti-calendar-plus me-2'></i>" . htmlescape(__('Criar agendamento', 'agendamento')) . "</h5>";
+            echo "<button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button>";
+            echo "</div>";
+            self::renderGoogleConnectionRequiredModalBody();
+            echo "</div>";
+            echo "</div>";
+            echo "</div>";
             return;
         }
 
@@ -2580,6 +2807,9 @@ class Agendamento
             if (!$DB->fieldExists(self::TABLE, 'tipo')) {
                 $DB->doQuery("ALTER TABLE `" . self::TABLE . "` ADD COLUMN `tipo` varchar(100) DEFAULT NULL AFTER `status`");
             }
+            if (!$DB->fieldExists(self::TABLE, 'reminder_sent')) {
+                $DB->doQuery("ALTER TABLE `" . self::TABLE . "` ADD COLUMN `reminder_sent` datetime DEFAULT NULL");
+            }
             return;
         }
 
@@ -2601,6 +2831,7 @@ class Agendamento
             `observacoes` text DEFAULT NULL,
             `users_id` int " . $defaultKeySign . " NOT NULL DEFAULT 0,
             `tickettasks_id` int " . $defaultKeySign . " NOT NULL DEFAULT 0,
+            `reminder_sent` datetime DEFAULT NULL,
             `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
             `date_mod` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (`id`),

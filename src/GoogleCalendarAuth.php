@@ -163,6 +163,24 @@ class GoogleCalendarAuth
         return $tokenData !== null && (int) ($tokenData['is_active'] ?? 0) === 1;
     }
 
+    public static function isConnectionRequired(int $userId): bool
+    {
+        if ($userId <= 0 || !Session::haveRight('plugin_agendamento', READ)) {
+            return false;
+        }
+
+        $config = Config::getConfig();
+        $syncEnabled = (int) ($config['google_sync_enabled'] ?? 0) === 1
+            && trim($config['google_client_id'] ?? '') !== '';
+        $forceConnection = (int) ($config['google_force_connection'] ?? 0) === 1;
+
+        if (!$syncEnabled || !$forceConnection) {
+            return false;
+        }
+
+        return !self::isConnected($userId);
+    }
+
     public static function getTokenData(int $userId): ?array
     {
         global $DB;

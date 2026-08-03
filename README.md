@@ -49,6 +49,11 @@ O **Plugin GLPI Agendamento** permite que técnicos e administradores agendem at
 - **Informações do cliente**: contato e endereço vinculados ao agendamento
 - **Integração com TicketTask** — criação automática de tarefa ao agendar
 - **Integração com Google Calendar** — sincronização unidirecional GLPI → Google via OAuth 2.0
+- **Detecção de conflito de horário** — bloqueia a criação/edição/reagendamento de um compromisso que sobreponha outro do mesmo técnico
+- **Conexão obrigatória com Google Calendar** (opcional) — permite forçar o técnico a conectar sua conta Google antes de usar o calendário
+- **Notificações nativas do GLPI** — e-mails de criação, atualização/reagendamento, cancelamento e lembrete, usando o mecanismo nativo de notificações (`Configurar → Notificações`)
+- **Lembretes automáticos** — ação automática (CronTask) que envia lembrete configurável de X horas antes do agendamento
+- **Cards de Dashboard** — KPIs de agendamentos (próximos 7 dias, realizados e cancelados no mês) disponíveis no Dashboard nativo do GLPI
 - **Configurações administrativas** acessíveis na aba de configuração do GLPI
 - **Proteção CSRF** em todos os formulários e requisições AJAX
 
@@ -146,9 +151,15 @@ Acesse as configurações em: **Configuração → Configuração Geral → aba 
 | `slot_duration`         | `00:30:00`   | Tamanho de cada slot de tempo                |
 | `default_event_duration`| `60`         | Duração padrão dos eventos (em minutos)      |
 | `auto_create_task`      | `1`          | Cria TicketTask automaticamente ao agendar   |
-| `notify_technician`     | `0`          | Notifica o técnico responsável               |
+| `notify_technician`     | `0`          | Ativa o envio de notificações (criação, atualização/reagendamento, cancelamento e lembrete) |
+| `reminder_hours_before` | `24`         | Quantas horas antes do agendamento o lembrete automático é enviado |
 | `calendar_height`       | `650`        | Altura do calendário em pixels               |
 | `business_days`         | `1,2,3,4,5`  | Dias úteis exibidos (1=Seg ... 7=Dom)        |
+| `google_force_connection`| `0`         | Bloqueia o acesso ao calendário/agendamentos até o técnico conectar o Google Calendar (requer `google_sync_enabled`) |
+
+> **Notificações:** o plugin registra o itemtype `Agendamento` no mecanismo **nativo** de notificações do GLPI. Após ativar `notify_technician`, crie/edite as notificações e os modelos de e-mail em **Configurar → Notificações** (itemtype "Agendamento"), do mesmo jeito que é feito para chamados — nenhum e-mail é enviado "na mão" pelo plugin.
+>
+> **Lembretes:** a ação automática `AgendamentoLembretes` é registrada em **Configurar → Ações automáticas**, onde a frequência de execução é controlada; o campo `reminder_hours_before` acima define apenas a antecedência do lembrete em relação ao horário do agendamento.
 
 ---
 
@@ -186,6 +197,10 @@ Na página **Meus Agendamentos**, cada técnico tem os botões:
 - Ao **cancelar** → evento removido do Google Calendar
 - Os tokens OAuth são armazenados criptografados (AES-256) na tabela `glpi_plugin_agendamento_google_tokens`
 
+### Forçar conexão do técnico
+
+Se muitos técnicos não estiverem conectando sua conta Google (e por consequência a agenda ficando dessincronizada), ative `google_force_connection` na configuração do plugin (além de `google_sync_enabled`). Com isso, qualquer usuário com o direito `plugin_agendamento` que ainda não tiver conectado sua conta é bloqueado — não consegue ver o calendário nem criar/editar/reagendar agendamentos — até clicar em "Conectar Google Calendar" na própria tela de bloqueio.
+
 ---
 
 ## Estrutura do Projeto
@@ -210,6 +225,10 @@ A raiz deste repositório é o próprio plugin (mesma convenção do [plugin-exa
 │   └── profile.form.php             # Gerenciamento de perfis e permissões
 ├── src/
 │   ├── Agendamento.php              # Classe principal com toda a lógica de negócio
+│   ├── AgendamentoItem.php          # CommonDBTM fino usado como alvo das notificações nativas
+│   ├── NotificationTargetAgendamentoItem.php # Alvos, tags e dados de template das notificações
+│   ├── CronTaskAgendamento.php      # Ação automática que envia lembretes de agendamentos
+│   ├── Dashboard.php                # Cards de KPI para o Dashboard nativo do GLPI
 │   ├── Config.php                   # Classe de configuração (integrada à aba Config do GLPI)
 │   ├── TicketAgendamento.php        # Aba "Agendamentos" no chamado (addtabon Ticket)
 │   ├── MenuAgendamento.php          # Classe de menu e navegação do plugin
@@ -256,6 +275,7 @@ A raiz deste repositório é o próprio plugin (mesma convenção do [plugin-exa
 | `tickettasks_id`      | int            | ID da TicketTask vinculada                           |
 | `google_event_id`     | varchar(255)   | ID do evento no Google Calendar (quando sincronizado)|
 | `motivo_reagendamento`| text           | Último motivo informado ao reagendar                 |
+| `reminder_sent`       | datetime       | Data/hora em que o lembrete automático foi enviado (nulo até ser enviado) |
 | `date_creation`       | timestamp      | Data de criação                                      |
 | `date_mod`            | timestamp      | Data da última modificação                           |
 
