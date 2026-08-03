@@ -1646,7 +1646,11 @@ class Agendamento
 
     private static function renderTicketTabFormModal(string $formUrl, int $ticketId): void
     {
-        $defaultDateTime = self::getDefaultDateTimeValues();
+        $defaultDurationMinutes = (int) Config::getConfigValue('default_event_duration', 60);
+        if ($defaultDurationMinutes <= 0) {
+            $defaultDurationMinutes = 60;
+        }
+        $defaultDateTime = self::getDefaultDateTimeValues($defaultDurationMinutes);
         $metadata = self::getTicketMetadata($ticketId);
 
         echo "<div class='modal fade' id='plugin-agendamento-tab-form-modal' tabindex='-1' aria-hidden='true'>";
@@ -1700,7 +1704,7 @@ class Agendamento
         echo "</div>";
         echo "<div class='col-md-6'>";
         echo "<label for='plugin-agendamento-tab-form-end' class='form-label'>" . htmlescape(__('Data Fim Prevista', 'agendamento')) . "</label>";
-        echo "<input type='datetime-local' id='plugin-agendamento-tab-form-end' name='agendamento_data_hora_fim' class='form-control' value='" . htmlescape($defaultDateTime['end']) . "' data-default='" . htmlescape($defaultDateTime['end']) . "'>";
+        echo "<input type='datetime-local' id='plugin-agendamento-tab-form-end' name='agendamento_data_hora_fim' class='form-control' value='" . htmlescape($defaultDateTime['end']) . "' data-default='" . htmlescape($defaultDateTime['end']) . "' data-default-duration-minutes='" . $defaultDurationMinutes . "'>";
         echo "</div>";
 
         echo "<div class='col-md-6'>";
@@ -2783,13 +2787,17 @@ class Agendamento
         ];
     }
 
-    private static function getDefaultDateTimeValues(): array
+    private static function getDefaultDateTimeValues(?int $durationMinutes = null): array
     {
+        $durationMinutes = $durationMinutes ?? (int) Config::getConfigValue('default_event_duration', 60);
+        if ($durationMinutes <= 0) {
+            $durationMinutes = 60;
+        }
         $now = time();
         $start = (int) ceil($now / 3600) * 3600;
         return [
             'start' => date('Y-m-d\TH:i', $start),
-            'end' => date('Y-m-d\TH:i', $start + 3600),
+            'end' => date('Y-m-d\TH:i', $start + $durationMinutes * 60),
         ];
     }
 
