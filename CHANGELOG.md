@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.11.1...v1.12.0) (2026-08-04)
+
+
+### Features
+
+* torna Tipo obrigatório opcionalmente e adiciona modelos de notificação ([f8fd0f1](https://github.com/Welington98/plugin-glpi-agendamento/commit/f8fd0f16c3c634b2b5b6279acee43e969b3e7c72))
+
 ## [1.11.1](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.11.0...v1.11.1) (2026-08-03)
 
 
