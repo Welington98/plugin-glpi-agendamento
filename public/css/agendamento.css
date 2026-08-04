@@ -104,6 +104,19 @@ body.modal-open .select2-container--open {
     text-overflow: ellipsis;
 }
 
+.plugin-agendamento-event-ticket-status {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.6875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.plugin-agendamento-event-ticket-status .itilstatus {
+    font-size: 0.75rem;
+}
+
 /* 6. Status */
 .plugin-agendamento-event-cancelado {
     opacity: 0.6;
@@ -131,6 +144,10 @@ body.modal-open .select2-container--open {
 .plugin-agendamento-calendar td,
 .plugin-agendamento-calendar th {
     border-color: #e9ecef !important;
+}
+
+.plugin-agendamento-calendar .fc-time-grid .fc-slats td {
+    height: 2.75rem;
 }
 
 .plugin-agendamento-calendar .fc-time-grid .fc-slats .fc-minor td {
