@@ -1,6 +1,6 @@
 <?php
 
-define('PLUGIN_AGENDAMENTO_VERSION', '1.12.0');
+define('PLUGIN_AGENDAMENTO_VERSION', '1.13.0');
 
 function plugin_agendamento_check_schema()
 {

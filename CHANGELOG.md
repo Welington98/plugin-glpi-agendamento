@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.12.0...v1.13.0) (2026-08-04)
+
+
+### Features
+
+* exibe status do chamado no card da agenda/calendário ([fdfd6d7](https://github.com/Welington98/plugin-glpi-agendamento/commit/fdfd6d72a1b2f1f3921b8ba2358cfba1f49b7e3e))
+
 # [1.12.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.11.1...v1.12.0) (2026-08-04)
 
 
