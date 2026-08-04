@@ -116,6 +116,7 @@ class Agendamento
         $selectedTechnician = isset($_POST['agendamento_users_id_tech']) ? (string) $_POST['agendamento_users_id_tech'] : '';
         $selectedStatus = isset($_POST['agendamento_status']) ? (string) $_POST['agendamento_status'] : self::STATUS_AGENDADO;
         $selectedTipo = isset($_POST['agendamento_tipo']) ? (string) $_POST['agendamento_tipo'] : '';
+        $tipoRequired = (bool) ($pluginConfig['agendamento_tipo_obrigatorio'] ?? 0);
         $notes = isset($_POST['agendamento_observacoes']) ? (string) $_POST['agendamento_observacoes'] : '';
         $selectedClientContact = isset($_POST['agendamento_contato_cliente'])
             ? (string) $_POST['agendamento_contato_cliente']
@@ -398,8 +399,8 @@ class Agendamento
                                     </select>
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="agendamento_tipo" class="form-label"><?php echo htmlescape(__('Tipo', 'agendamento')); ?></label>
-                                    <select id="agendamento_tipo" name="agendamento_tipo" class="form-select">
+                                    <label for="agendamento_tipo" class="form-label<?php echo $tipoRequired ? ' required' : ''; ?>"><?php echo htmlescape(__('Tipo', 'agendamento')); ?></label>
+                                    <select id="agendamento_tipo" name="agendamento_tipo" class="form-select"<?php echo $tipoRequired ? ' required' : ''; ?>>
                                         <option value=""<?php echo $selectedTipo === '' ? ' selected' : ''; ?>><?php echo htmlescape(__('Não definido', 'agendamento')); ?></option>
                                         <?php foreach ($tipoOptions as $tipoKey => $tipoLabel) { ?>
                                             <option value="<?php echo htmlescape($tipoKey); ?>"<?php echo $selectedTipo === $tipoKey ? ' selected' : ''; ?>><?php echo htmlescape($tipoLabel); ?></option>
@@ -1422,6 +1423,7 @@ class Agendamento
         }
 
         $pluginConfig = Config::getConfig();
+        $tipoRequired = (bool) ($pluginConfig['agendamento_tipo_obrigatorio'] ?? 0);
         $defaultDateTime = self::getDefaultDateTimeValues();
         $metadata = self::getTicketMetadata($ticketId);
         $ticketName = trim((string) ($ticket->fields['name'] ?? ''));
@@ -1537,8 +1539,8 @@ class Agendamento
         echo "</div>";
 
         echo "<div class='col-md-6'>";
-        echo "<label for='plugin-agendamento-ticket-tipo' class='form-label'>" . htmlescape(__('Tipo', 'agendamento')) . "</label>";
-        echo "<select id='plugin-agendamento-ticket-tipo' name='agendamento_tipo' class='form-select'>";
+        echo "<label for='plugin-agendamento-ticket-tipo' class='form-label" . ($tipoRequired ? ' required' : '') . "'>" . htmlescape(__('Tipo', 'agendamento')) . "</label>";
+        echo "<select id='plugin-agendamento-ticket-tipo' name='agendamento_tipo' class='form-select'" . ($tipoRequired ? ' required' : '') . ">";
         echo "<option value=''>" . htmlescape(__('Não definido', 'agendamento')) . "</option>";
         foreach (Config::getTipoOptions() as $tipoKey => $tipoLabel) {
             echo "<option value='" . htmlescape($tipoKey) . "'>" . htmlescape($tipoLabel) . "</option>";
@@ -1650,6 +1652,7 @@ class Agendamento
         if ($defaultDurationMinutes <= 0) {
             $defaultDurationMinutes = 60;
         }
+        $tipoRequired = (bool) Config::getConfigValue('agendamento_tipo_obrigatorio', 0);
         $defaultDateTime = self::getDefaultDateTimeValues($defaultDurationMinutes);
         $metadata = self::getTicketMetadata($ticketId);
 
@@ -1689,8 +1692,8 @@ class Agendamento
         echo "</div>";
 
         echo "<div class='col-md-6'>";
-        echo "<label class='form-label'>" . htmlescape(__('Tipo', 'agendamento')) . "</label>";
-        echo "<select id='plugin-agendamento-tab-form-tipo' name='agendamento_tipo' class='form-select'>";
+        echo "<label class='form-label" . ($tipoRequired ? ' required' : '') . "'>" . htmlescape(__('Tipo', 'agendamento')) . "</label>";
+        echo "<select id='plugin-agendamento-tab-form-tipo' name='agendamento_tipo' class='form-select'" . ($tipoRequired ? ' required' : '') . ">";
         echo "<option value=''>" . htmlescape(__('Não definido', 'agendamento')) . "</option>";
         foreach (Config::getTipoOptions() as $tipoKey => $tipoLabel) {
             echo "<option value='" . htmlescape($tipoKey) . "'>" . htmlescape($tipoLabel) . "</option>";
@@ -2752,6 +2755,10 @@ class Agendamento
 
         if ($technicianId <= 0) {
             throw new \RuntimeException(__('Selecione um técnico.', 'agendamento'));
+        }
+
+        if ((int) Config::getConfigValue('agendamento_tipo_obrigatorio', 0) === 1 && $tipo === null) {
+            throw new \RuntimeException(__('Selecione o tipo do agendamento.', 'agendamento'));
         }
 
         if ($start === null) {

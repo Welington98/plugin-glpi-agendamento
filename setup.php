@@ -56,6 +56,97 @@ function plugin_agendamento_check_schema()
     }
 }
 
+function plugin_agendamento_seed_default_notifications()
+{
+    global $DB;
+
+    if (!$DB->tableExists('glpi_notifications') || !$DB->tableExists('glpi_notificationtemplates')) {
+        return;
+    }
+
+    $itemtype = \GlpiPlugin\Agendamento\AgendamentoItem::class;
+    // Must match GlpiPlugin\Agendamento\NotificationTargetAgendamentoItem::TARGET_TICKET_REQUESTER
+    $requesterTargetId = 900001;
+
+    $events = [
+        'new' => [
+            'label' => __('Agendamento criado', 'agendamento'),
+            'subject' => __('Novo agendamento criado - Chamado ##agendamento.ticket_id##', 'agendamento'),
+            'content' => __("Um novo agendamento foi criado.\n\nChamado: ##agendamento.ticket_id##\nTécnico: ##agendamento.technician##\nInício: ##agendamento.date_start##\nFim: ##agendamento.date_end##\nStatus: ##agendamento.status##\n\nAcesse o chamado: ##agendamento.url##", 'agendamento'),
+        ],
+        'update' => [
+            'label' => __('Agendamento atualizado/reagendado', 'agendamento'),
+            'subject' => __('Agendamento atualizado - Chamado ##agendamento.ticket_id##', 'agendamento'),
+            'content' => __("O agendamento do chamado ##agendamento.ticket_id## foi atualizado.\n\nTécnico: ##agendamento.technician##\nNovo início: ##agendamento.date_start##\nNovo fim: ##agendamento.date_end##\nStatus: ##agendamento.status##\nMotivo do reagendamento: ##agendamento.reschedule_reason##\n\nAcesse o chamado: ##agendamento.url##", 'agendamento'),
+        ],
+        'cancel' => [
+            'label' => __('Agendamento cancelado', 'agendamento'),
+            'subject' => __('Agendamento cancelado - Chamado ##agendamento.ticket_id##', 'agendamento'),
+            'content' => __("O agendamento do chamado ##agendamento.ticket_id## foi cancelado.\n\nTécnico: ##agendamento.technician##\nData que estava agendada: ##agendamento.date_start##\nMotivo do cancelamento: ##agendamento.cancel_reason##\n\nAcesse o chamado: ##agendamento.url##", 'agendamento'),
+        ],
+        'reminder' => [
+            'label' => __('Lembrete de agendamento', 'agendamento'),
+            'subject' => __('Lembrete: agendamento em breve - Chamado ##agendamento.ticket_id##', 'agendamento'),
+            'content' => __("Este é um lembrete do seu agendamento.\n\nChamado: ##agendamento.ticket_id##\nTécnico: ##agendamento.technician##\nInício: ##agendamento.date_start##\nFim: ##agendamento.date_end##\n\nAcesse o chamado: ##agendamento.url##", 'agendamento'),
+        ],
+    ];
+
+    foreach ($events as $event => $data) {
+        if (countElementsInTable('glpi_notifications', ['itemtype' => $itemtype, 'event' => $event]) > 0) {
+            continue;
+        }
+
+        $name = sprintf(__('Agendamento - %s', 'agendamento'), $data['label']);
+
+        $DB->insert('glpi_notifications', [
+            'name' => $name,
+            'entities_id' => 0,
+            'itemtype' => $itemtype,
+            'event' => $event,
+            'comment' => '',
+            'is_recursive' => 1,
+            'is_active' => 1,
+            'date_creation' => new \Glpi\DBAL\QueryExpression('NOW()'),
+            'date_mod' => new \Glpi\DBAL\QueryExpression('NOW()'),
+        ]);
+        $notificationId = $DB->insertId();
+
+        $DB->insert('glpi_notificationtemplates', [
+            'name' => $name,
+            'itemtype' => $itemtype,
+            'date_creation' => new \Glpi\DBAL\QueryExpression('NOW()'),
+            'date_mod' => new \Glpi\DBAL\QueryExpression('NOW()'),
+        ]);
+        $templateId = $DB->insertId();
+
+        $DB->insert('glpi_notificationtemplatetranslations', [
+            'notificationtemplates_id' => $templateId,
+            'language' => '',
+            'subject' => $data['subject'],
+            'content_text' => $data['content'],
+            'content_html' => '<p>' . nl2br(htmlspecialchars($data['content'])) . '</p>',
+        ]);
+
+        $DB->insert('glpi_notifications_notificationtemplates', [
+            'notifications_id' => $notificationId,
+            'mode' => Notification_NotificationTemplate::MODE_MAIL,
+            'notificationtemplates_id' => $templateId,
+        ]);
+
+        $DB->insert('glpi_notificationtargets', [
+            'items_id' => Notification::ITEM_TECH_IN_CHARGE,
+            'type' => Notification::USER_TYPE,
+            'notifications_id' => $notificationId,
+        ]);
+
+        $DB->insert('glpi_notificationtargets', [
+            'items_id' => $requesterTargetId,
+            'type' => Notification::USER_TYPE,
+            'notifications_id' => $notificationId,
+        ]);
+    }
+}
+
 function plugin_init_agendamento()
 {
     global $PLUGIN_HOOKS, $DB;
@@ -74,6 +165,7 @@ function plugin_init_agendamento()
 
     if (isset($DB) && $DB->connected) {
         plugin_agendamento_check_schema();
+        plugin_agendamento_seed_default_notifications();
 
         $profileRight = new ProfileRight();
         $hasRights = $profileRight->find(['name' => 'plugin_agendamento'], [], 1);

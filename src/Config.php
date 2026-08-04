@@ -30,11 +30,16 @@ class Config extends CommonDBTM
         'business_days' => '1,2,3,4,5',
         'technician_profile_ids' => '',
         'agendamento_tipos' => "Entrega\nRetirada\nVisita Técnica",
+        'agendamento_tipo_obrigatorio' => 0,
         'google_client_id' => '',
         'google_client_secret' => '',
         'google_sync_enabled' => 0,
         'google_calendar_id' => 'primary',
         'google_force_connection' => 0,
+        'whatsapp_template_new' => "Olá! Seu agendamento foi criado.\n\nChamado: ##agendamento.ticket_id##\nTécnico: ##agendamento.technician##\nData: ##agendamento.date_start## até ##agendamento.date_end##\n\nMais detalhes: ##agendamento.url##",
+        'whatsapp_template_update' => "Olá! Seu agendamento foi atualizado.\n\nChamado: ##agendamento.ticket_id##\nTécnico: ##agendamento.technician##\nNova data: ##agendamento.date_start## até ##agendamento.date_end##\nMotivo: ##agendamento.reschedule_reason##\n\nMais detalhes: ##agendamento.url##",
+        'whatsapp_template_cancel' => "Olá! Seu agendamento foi cancelado.\n\nChamado: ##agendamento.ticket_id##\nData que estava marcada: ##agendamento.date_start##\nMotivo: ##agendamento.cancel_reason##\n\nMais detalhes: ##agendamento.url##",
+        'whatsapp_template_reminder' => "Olá! Lembrete do seu agendamento.\n\nChamado: ##agendamento.ticket_id##\nTécnico: ##agendamento.technician##\nData: ##agendamento.date_start## até ##agendamento.date_end##\n\nMais detalhes: ##agendamento.url##",
     ];
 
     public static function getTypeName($nb = 0)
@@ -204,9 +209,22 @@ class Config extends CommonDBTM
         echo "</td></tr>";
 
         echo "<tr class='tab_bg_1'>";
-        echo "<td><label for='agendamento_tipos'><i class='ti ti-tag me-1'></i>" . __('Tipos de agendamento', 'agendamento') . "</label></td>";
-        echo "<td><textarea id='agendamento_tipos' name='agendamento_tipos' class='form-control' rows='4' style='width:300px;display:inline-block' placeholder='" . htmlspecialchars(__('Um tipo por linha...', 'agendamento')) . "'>" . htmlspecialchars($config['agendamento_tipos']) . "</textarea>";
-        echo "&nbsp;<small>" . __('Um tipo por linha. Usado no campo opcional "Tipo" dos agendamentos (ex.: Entrega, Retirada, Visita Técnica).', 'agendamento') . "</small></td>";
+        echo "<td><label><i class='ti ti-tag me-1'></i>" . __('Tipos de agendamento', 'agendamento') . "</label></td>";
+        echo "<td>";
+        echo "<div id='agendamento_tipos_list' class='d-flex flex-column gap-1' style='max-width:350px'>";
+        foreach (self::getTipoOptions() as $tipo) {
+            echo "<div class='input-group input-group-sm agendamento-tipo-row'>";
+            echo "<input type='text' name='agendamento_tipos[]' class='form-control' value='" . htmlspecialchars($tipo) . "'>";
+            echo "<button type='button' class='btn btn-outline-danger agendamento-tipo-remove'><i class='ti ti-x'></i></button>";
+            echo "</div>";
+        }
+        echo "</div>";
+        echo "<div class='input-group input-group-sm mt-2' style='max-width:350px'>";
+        echo "<input type='text' id='agendamento_tipo_new' class='form-control' placeholder='" . htmlspecialchars(__('Novo tipo...', 'agendamento')) . "'>";
+        echo "<button type='button' id='agendamento_tipo_add' class='btn btn-outline-primary'><i class='ti ti-plus'></i> " . __('Adicionar', 'agendamento') . "</button>";
+        echo "</div>";
+        echo "&nbsp;<small>" . __('Usado no campo "Tipo" dos agendamentos (ex.: Entrega, Retirada, Visita Técnica).', 'agendamento') . "</small>";
+        echo "</td>";
         echo "</tr>";
 
         echo "</table><br>";
@@ -240,10 +258,16 @@ class Config extends CommonDBTM
         echo "</td></tr>";
 
         echo "<tr class='tab_bg_1'>";
+        echo "<td><label for='agendamento_tipo_obrigatorio'><i class='ti ti-asterisk me-1'></i>" . __('Tornar o campo "Tipo" obrigatório', 'agendamento') . "</label></td>";
+        echo "<td>";
+        Dropdown::showYesNo('agendamento_tipo_obrigatorio', $config['agendamento_tipo_obrigatorio']);
+        echo "</td></tr>";
+
+        echo "<tr class='tab_bg_1'>";
         echo "<td><label for='notify_technician'><i class='ti ti-bell me-1'></i>" . __('Notificar técnico e solicitante nos eventos do agendamento', 'agendamento') . "</label></td>";
         echo "<td>";
         Dropdown::showYesNo('notify_technician', $config['notify_technician']);
-        echo "&nbsp;<small>" . __('Os modelos de e-mail são configurados nativamente em Configurar > Notificações.', 'agendamento') . "</small></td>";
+        echo "&nbsp;<small>" . __('Modelos padrão de e-mail já são criados automaticamente (Configurar > Notificações, itemtype "Agendamento") e podem ser personalizados por lá.', 'agendamento') . "</small></td>";
         echo "</tr>";
 
         echo "<tr class='tab_bg_1'>";
@@ -251,6 +275,25 @@ class Config extends CommonDBTM
         echo "<td><input type='number' id='reminder_hours_before' name='reminder_hours_before' value='" . (int) $config['reminder_hours_before'] . "' min='1' max='168' step='1' class='form-control' style='width:200px;display:inline-block'>";
         echo "&nbsp;<small>" . __('A execução da ação automática é controlada em Configurar > Ações automáticas.', 'agendamento') . "</small></td>";
         echo "</tr>";
+
+        echo "</table><br>";
+
+        echo "<table class='tab_cadre_fixe'>";
+        echo "<tr><th colspan='2'><i class='ti ti-brand-whatsapp me-1'></i>" . __('Modelos de Mensagem (WhatsApp)', 'agendamento') . "</th></tr>";
+        echo "<tr class='tab_bg_1'><td colspan='2'><small>" . __('Textos usados como ponto de partida para enviar por WhatsApp manualmente. O envio automático ainda não está integrado — por enquanto, o e-mail é o canal padrão de notificação.', 'agendamento') . "</small></td></tr>";
+
+        $whatsappFields = [
+            'whatsapp_template_new' => __('Agendamento criado', 'agendamento'),
+            'whatsapp_template_update' => __('Agendamento atualizado/reagendado', 'agendamento'),
+            'whatsapp_template_cancel' => __('Agendamento cancelado', 'agendamento'),
+            'whatsapp_template_reminder' => __('Lembrete de agendamento', 'agendamento'),
+        ];
+        foreach ($whatsappFields as $fieldName => $fieldLabel) {
+            echo "<tr class='tab_bg_1'>";
+            echo "<td><label for='" . $fieldName . "'>" . htmlspecialchars($fieldLabel) . "</label></td>";
+            echo "<td><textarea id='" . $fieldName . "' name='" . $fieldName . "' class='form-control' rows='4' style='width:350px;display:inline-block'>" . htmlspecialchars($config[$fieldName]) . "</textarea></td>";
+            echo "</tr>";
+        }
 
         echo "</table><br>";
 
@@ -306,6 +349,40 @@ echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='
         echo "</td></tr>";
         echo "</table>";
 
+        echo <<<'HTML'
+        <script>
+        (function() {
+            const list = document.getElementById('agendamento_tipos_list');
+            const newInput = document.getElementById('agendamento_tipo_new');
+            const addBtn = document.getElementById('agendamento_tipo_add');
+
+            const bindRemove = (row) => {
+                row.querySelector('.agendamento-tipo-remove').addEventListener('click', () => row.remove());
+            };
+
+            const addFromInput = () => {
+                const value = newInput.value.trim();
+                if (value === '') { return; }
+                const row = document.createElement('div');
+                row.className = 'input-group input-group-sm agendamento-tipo-row';
+                row.innerHTML = "<input type='text' name='agendamento_tipos[]' class='form-control'>"
+                    + "<button type='button' class='btn btn-outline-danger agendamento-tipo-remove'><i class='ti ti-x'></i></button>";
+                row.querySelector('input').value = value;
+                list.appendChild(row);
+                bindRemove(row);
+                newInput.value = '';
+                newInput.focus();
+            };
+
+            addBtn.addEventListener('click', addFromInput);
+            newInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); addFromInput(); }
+            });
+            list.querySelectorAll('.agendamento-tipo-row').forEach(bindRemove);
+        })();
+        </script>
+        HTML;
+
         Html::closeForm();
         echo "</div>";
     }
@@ -324,14 +401,15 @@ echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='
             ? implode(',', array_map('intval', $input['business_days']))
             : '1,2,3,4,5';
 
-        $tipoLines = preg_split('/\r\n|\r|\n/', (string) ($input['agendamento_tipos'] ?? ''));
         $agendamentoTipos = [];
-        foreach ($tipoLines as $line) {
-            $label = trim($line);
-            if ($label === '' || in_array($label, $agendamentoTipos, true)) {
-                continue;
+        if (isset($input['agendamento_tipos']) && is_array($input['agendamento_tipos'])) {
+            foreach ($input['agendamento_tipos'] as $line) {
+                $label = trim((string) $line);
+                if ($label === '' || in_array($label, $agendamentoTipos, true)) {
+                    continue;
+                }
+                $agendamentoTipos[] = $label;
             }
-            $agendamentoTipos[] = $label;
         }
 
         $data = [
@@ -347,10 +425,15 @@ echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='
             'business_days' => $businessDays,
             'technician_profile_ids' => implode(',', $technicianProfileIds),
             'agendamento_tipos' => implode("\n", $agendamentoTipos),
+            'agendamento_tipo_obrigatorio' => (int) ($input['agendamento_tipo_obrigatorio'] ?? 0),
             'google_sync_enabled' => (int) ($input['google_sync_enabled'] ?? 0),
             'google_force_connection' => (int) ($input['google_force_connection'] ?? 0),
             'google_client_id' => trim((string) ($input['google_client_id'] ?? '')),
             'google_calendar_id' => trim((string) ($input['google_calendar_id'] ?? 'primary')) ?: 'primary',
+            'whatsapp_template_new' => trim((string) ($input['whatsapp_template_new'] ?? '')),
+            'whatsapp_template_update' => trim((string) ($input['whatsapp_template_update'] ?? '')),
+            'whatsapp_template_cancel' => trim((string) ($input['whatsapp_template_cancel'] ?? '')),
+            'whatsapp_template_reminder' => trim((string) ($input['whatsapp_template_reminder'] ?? '')),
         ];
 
         $newSecret = trim((string) ($input['google_client_secret'] ?? ''));
