@@ -105,6 +105,7 @@
         const endInput = document.getElementById('agendamento_data_hora_fim');
         const detailTitle = document.getElementById('plugin-agendamento-detail-title');
         const detailStatus = document.getElementById('plugin-agendamento-detail-status');
+        const detailTicketStatus = document.getElementById('plugin-agendamento-detail-ticket-status');
         const detailTipo = document.getElementById('plugin-agendamento-detail-tipo');
         const detailTime = document.getElementById('plugin-agendamento-detail-time');
         const detailTech = document.getElementById('plugin-agendamento-detail-tech');
@@ -708,6 +709,11 @@
             toggleCancelPanel(false);
             detailTitle.textContent = info.event.title || config.texts.detailsTitle;
             detailStatus.textContent = props.statusLabel || '';
+            if (detailTicketStatus) {
+                detailTicketStatus.innerHTML = props.ticketStatusIcon
+                    ? props.ticketStatusIcon + escapeHtml(props.ticketStatusLabel || '')
+                    : '';
+            }
             if (detailTipo) {
                 detailTipo.textContent = props.tipoLabel || '-';
             }
@@ -753,12 +759,15 @@
         },
         eventRender: function (info) {
             const props = info.event.extendedProps || {};
-            const tooltip = [info.event.title, props.technician, props.statusLabel, props.notes].filter(Boolean).join(' · ');
+            const ticketStatusIcon = props.ticketStatusIcon || '';
+            const ticketStatusLabel = props.ticketStatusLabel || '';
+            const tooltip = [info.event.title, props.technician, props.statusLabel, ticketStatusLabel, props.notes].filter(Boolean).join(' · ');
             const timeText = info.timeText || '';
             const tech = props.technician || '';
             info.el.innerHTML = '<div class="plugin-agendamento-event-inner">'
                 + '<div class="plugin-agendamento-event-title">' + escapeHtml(info.event.title) + '</div>'
                 + (tech ? '<div class="plugin-agendamento-event-meta">' + escapeHtml(tech) + '</div>' : '')
+                + (ticketStatusIcon ? '<div class="plugin-agendamento-event-ticket-status">' + ticketStatusIcon + '<span>' + escapeHtml(ticketStatusLabel) + '</span></div>' : '')
                 + '</div>';
             if (tooltip) {
                 info.el.setAttribute('title', tooltip);

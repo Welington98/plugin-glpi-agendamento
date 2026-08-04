@@ -63,12 +63,14 @@
                 const props = info.event.extendedProps || {};
                 const titleEl = info.el.querySelector('.fc-title');
                 if (titleEl) {
-                    titleEl.innerHTML = '<strong>' + info.event.title + '</strong>';
+                    titleEl.innerHTML = '<strong>' + info.event.title + '</strong>'
+                        + (props.ticketStatusIcon ? ' ' + props.ticketStatusIcon : '');
                 }
 
                 const tooltip = [
                     info.event.title,
                     props.statusLabel || '',
+                    props.ticketStatusLabel ? 'Chamado: ' + props.ticketStatusLabel : '',
                     props.technician ? 'Técnico: ' + props.technician : '',
                 ].filter(Boolean).join('\n');
                 if (tooltip) {

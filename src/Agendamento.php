@@ -435,8 +435,9 @@ class Agendamento
                     </div>
 
                     <div class="modal-body">
-                        <div class="mb-3">
+                        <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
                             <span class="badge bg-secondary fs-6" id="plugin-agendamento-detail-status"><?php echo htmlescape(__('Agendado', 'agendamento')); ?></span>
+                            <span id="plugin-agendamento-detail-ticket-status" class="d-inline-flex align-items-center gap-1 small text-muted"></span>
                         </div>
 
                         <div class="list-group list-group-flush">
@@ -860,6 +861,7 @@ class Agendamento
                 self::TABLE . '.*',
                 'glpi_tickets.id AS ticket_id',
                 'glpi_tickets.name AS ticket_name',
+                'glpi_tickets.status AS ticket_status',
             ],
             'FROM' => self::TABLE,
             'LEFT JOIN' => [
@@ -900,6 +902,7 @@ class Agendamento
             $status = self::normalizeStatus((string) ($agendamento['status'] ?? self::STATUS_AGENDADO));
             $palette = self::getStatusPalette($status);
             $ticketId = (int) ($agendamento['ticket_id'] ?? $agendamento['tickets_id'] ?? 0);
+            $ticketStatus = (int) ($agendamento['ticket_status'] ?? 0);
 
             $events[] = [
                 'id' => (string) ((int) ($agendamento['id'] ?? 0)),
@@ -922,6 +925,9 @@ class Agendamento
                     'clientContact' => trim((string) ($agendamento['contato_cliente'] ?? '')),
                     'clientAddress' => trim((string) ($agendamento['endereco_cliente'] ?? '')),
                     'statusLabel' => self::getStatusLabel($status),
+                    'ticketStatus' => $ticketStatus,
+                    'ticketStatusLabel' => $ticketStatus > 0 ? GlpiTicket::getStatus($ticketStatus) : '',
+                    'ticketStatusIcon' => $ticketStatus > 0 ? GlpiTicket::getStatusIcon($ticketStatus) : '',
                     'tipo' => trim((string) ($agendamento['tipo'] ?? '')),
                     'tipoLabel' => self::getTipoLabel($agendamento['tipo'] ?? null),
                     'notes' => trim((string) ($agendamento['observacoes'] ?? '')),
