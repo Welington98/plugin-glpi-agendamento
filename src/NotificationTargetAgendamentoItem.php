@@ -3,6 +3,7 @@
 namespace GlpiPlugin\Agendamento;
 
 use CommonITILActor;
+use Dropdown;
 use Notification;
 use NotificationTarget;
 use Ticket as GlpiTicket;
@@ -70,28 +71,38 @@ class NotificationTargetAgendamentoItem extends NotificationTarget
     public function addDataForTemplate($event, $options = [])
     {
         $agendamento = $options['agendamento'] ?? [];
+        $ticketId = (int) ($agendamento['tickets_id'] ?? 0);
+        $ticketExtras = self::getTicketExtras($ticketId);
 
-        $this->data['##agendamento.ticket_id##'] = (int) ($agendamento['tickets_id'] ?? 0);
+        $this->data['##agendamento.ticket_id##'] = $ticketId;
         $this->data['##agendamento.technician##'] = trim((string) ($agendamento['tecnico_nome'] ?? ''));
         $this->data['##agendamento.date_start##'] = self::formatDate((string) ($agendamento['data_hora_inicio'] ?? ''));
         $this->data['##agendamento.date_end##'] = self::formatDate((string) ($agendamento['data_hora_fim'] ?? ''));
         $this->data['##agendamento.status##'] = Agendamento::getStatusLabel((string) ($agendamento['status'] ?? ''));
         $this->data['##agendamento.cancel_reason##'] = trim((string) ($options['cancel_reason'] ?? ''));
         $this->data['##agendamento.reschedule_reason##'] = trim((string) ($options['reschedule_reason'] ?? ''));
-        $this->data['##agendamento.url##'] = self::buildTicketUrl((int) ($agendamento['tickets_id'] ?? 0));
+        $this->data['##agendamento.url##'] = self::buildTicketUrl($ticketId);
+        $this->data['##agendamento.ticket_title##'] = $ticketExtras['title'];
+        $this->data['##agendamento.ticket_description##'] = $ticketExtras['description'];
+        $this->data['##agendamento.requester##'] = $ticketExtras['requester'];
+        $this->data['##agendamento.entity##'] = $ticketExtras['entity'];
     }
 
     public function getTags()
     {
         $tags = [
-            'agendamento.ticket_id'         => __('Número do chamado', 'agendamento'),
-            'agendamento.technician'        => __('Técnico', 'agendamento'),
-            'agendamento.date_start'        => __('Início do agendamento', 'agendamento'),
-            'agendamento.date_end'          => __('Fim do agendamento', 'agendamento'),
-            'agendamento.status'            => __('Status', 'agendamento'),
-            'agendamento.cancel_reason'     => __('Motivo do cancelamento', 'agendamento'),
-            'agendamento.reschedule_reason' => __('Motivo do reagendamento', 'agendamento'),
-            'agendamento.url'               => __('Link do chamado', 'agendamento'),
+            'agendamento.ticket_id'          => __('Número do chamado', 'agendamento'),
+            'agendamento.ticket_title'       => __('Título do chamado', 'agendamento'),
+            'agendamento.ticket_description' => __('Descrição do chamado', 'agendamento'),
+            'agendamento.requester'          => __('Solicitante', 'agendamento'),
+            'agendamento.entity'             => __('Entidade', 'agendamento'),
+            'agendamento.technician'         => __('Técnico', 'agendamento'),
+            'agendamento.date_start'         => __('Início do agendamento', 'agendamento'),
+            'agendamento.date_end'           => __('Fim do agendamento', 'agendamento'),
+            'agendamento.status'             => __('Status', 'agendamento'),
+            'agendamento.cancel_reason'      => __('Motivo do cancelamento', 'agendamento'),
+            'agendamento.reschedule_reason'  => __('Motivo do reagendamento', 'agendamento'),
+            'agendamento.url'                => __('Link do chamado', 'agendamento'),
         ];
 
         foreach ($tags as $tag => $label) {
@@ -103,6 +114,45 @@ class NotificationTargetAgendamentoItem extends NotificationTarget
         }
 
         asort($this->tag_descriptions);
+    }
+
+    private static function getTicketExtras(int $ticketId): array
+    {
+        $extras = [
+            'title' => '',
+            'description' => '',
+            'requester' => '',
+            'entity' => '',
+        ];
+
+        if ($ticketId <= 0) {
+            return $extras;
+        }
+
+        $ticket = new GlpiTicket();
+        if (!$ticket->getFromDB($ticketId)) {
+            return $extras;
+        }
+
+        $extras['title'] = trim((string) ($ticket->fields['name'] ?? ''));
+        $extras['description'] = trim(strip_tags(html_entity_decode((string) ($ticket->fields['content'] ?? ''), ENT_QUOTES)));
+        $extras['entity'] = Dropdown::getDropdownName('glpi_entities', (int) ($ticket->fields['entities_id'] ?? 0));
+
+        $requesterNames = [];
+        foreach ($ticket->getUsers(CommonITILActor::REQUESTER) as $requester) {
+            $userId = (int) ($requester['users_id'] ?? 0);
+            if ($userId <= 0) {
+                continue;
+            }
+
+            $user = new User();
+            if ($user->getFromDB($userId)) {
+                $requesterNames[] = $user->getFriendlyName();
+            }
+        }
+        $extras['requester'] = implode(', ', array_unique(array_filter($requesterNames)));
+
+        return $extras;
     }
 
     private static function formatDate(string $value): string
