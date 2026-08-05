@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.13.0...v1.14.0) (2026-08-05)
+
+
+### Features
+
+* sincroniza status do agendamento automaticamente com o chamado ([9de3499](https://github.com/Welington98/plugin-glpi-agendamento/commit/9de34999450c1d5be2930f9a612d79aeaafa6e39))
+
 # [1.13.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.12.0...v1.13.0) (2026-08-04)
 
 
