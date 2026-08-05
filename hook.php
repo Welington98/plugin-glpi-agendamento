@@ -21,6 +21,18 @@ function plugin_agendamento_display_central()
     GlpiPlugin\Agendamento\Agendamento::showCentralWidget();
 }
 
+function plugin_agendamento_ticket_status_updated(Ticket $ticket)
+{
+    if (!in_array('status', $ticket->updates ?? [], true)) {
+        return;
+    }
+
+    GlpiPlugin\Agendamento\Agendamento::syncStatusFromTicket(
+        (int) $ticket->getID(),
+        (int) ($ticket->fields['status'] ?? 0)
+    );
+}
+
 function plugin_agendamento_dashboard_cards($cards = [])
 {
     if (!is_array($cards)) {

@@ -24,6 +24,7 @@ class Config extends CommonDBTM
         'slot_duration' => '00:30:00',
         'default_event_duration' => 60,
         'auto_create_task' => 1,
+        'sync_status_from_ticket' => 1,
         'notify_technician' => 0,
         'reminder_hours_before' => 24,
         'calendar_height' => 650,
@@ -264,6 +265,13 @@ class Config extends CommonDBTM
         echo "</td></tr>";
 
         echo "<tr class='tab_bg_1'>";
+        echo "<td><label for='sync_status_from_ticket'><i class='ti ti-refresh me-1'></i>" . __('Marcar agendamento como Realizado automaticamente', 'agendamento') . "</label></td>";
+        echo "<td>";
+        Dropdown::showYesNo('sync_status_from_ticket', $config['sync_status_from_ticket']);
+        echo "&nbsp;<small>" . __('Quando o chamado vinculado for marcado como Solucionado ou Fechado, o agendamento em aberto é atualizado para "Realizado" automaticamente, sem precisar de ação manual.', 'agendamento') . "</small></td>";
+        echo "</tr>";
+
+        echo "<tr class='tab_bg_1'>";
         echo "<td><label for='notify_technician'><i class='ti ti-bell me-1'></i>" . __('Notificar técnico e solicitante nos eventos do agendamento', 'agendamento') . "</label></td>";
         echo "<td>";
         Dropdown::showYesNo('notify_technician', $config['notify_technician']);
@@ -419,6 +427,7 @@ echo "<a href='" . htmlspecialchars($pluginWebDir) . "/front/config.php' class='
             'slot_duration' => in_array($input['slot_duration'] ?? '', ['00:15:00', '00:30:00', '00:60:00']) ? $input['slot_duration'] : '00:30:00',
             'default_event_duration' => max(15, min(480, (int) ($input['default_event_duration'] ?? 60))),
             'auto_create_task' => (int) ($input['auto_create_task'] ?? 1),
+            'sync_status_from_ticket' => (int) ($input['sync_status_from_ticket'] ?? 1),
             'notify_technician' => (int) ($input['notify_technician'] ?? 0),
             'reminder_hours_before' => max(1, min(168, (int) ($input['reminder_hours_before'] ?? 24))),
             'calendar_height' => max(400, min(1200, (int) ($input['calendar_height'] ?? 650))),
