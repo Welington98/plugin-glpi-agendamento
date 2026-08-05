@@ -156,13 +156,32 @@ class GoogleCalendarSync
 
         $ticketId = (int) ($agendamento['tickets_id'] ?? 0);
         $ticketName = $agendamento['ticket_name'] ?? '';
+        $ticketDescription = '';
+        $entityName = '';
+        $requesterNames = [];
 
-        if ($ticketName === '' && $ticketId > 0) {
+        if ($ticketId > 0) {
             $ticket = new \Ticket();
             if ($ticket->getFromDB($ticketId)) {
-                $ticketName = $ticket->fields['name'] ?? '';
+                if ($ticketName === '') {
+                    $ticketName = $ticket->fields['name'] ?? '';
+                }
+                $ticketDescription = trim(strip_tags(html_entity_decode((string) ($ticket->fields['content'] ?? ''), ENT_QUOTES)));
+                $entityName = \Dropdown::getDropdownName('glpi_entities', (int) ($ticket->fields['entities_id'] ?? 0));
+
+                foreach ($ticket->getUsers(\CommonITILActor::REQUESTER) as $requester) {
+                    $userId = (int) ($requester['users_id'] ?? 0);
+                    if ($userId <= 0) {
+                        continue;
+                    }
+                    $user = new \User();
+                    if ($user->getFromDB($userId)) {
+                        $requesterNames[] = $user->getFriendlyName();
+                    }
+                }
             }
         }
+        $requesterName = implode(', ', array_unique(array_filter($requesterNames)));
 
         $summary = "[GLPI #{$ticketId}] Atendimento";
         if ($ticketName !== '') {
@@ -180,6 +199,15 @@ class GoogleCalendarSync
         $description = "📋 Chamado GLPI #{$ticketId}\n";
         if ($ticketName !== '') {
             $description .= "Título: {$ticketName}\n";
+        }
+        if ($ticketDescription !== '') {
+            $description .= "\n📝 Descrição da Solicitação: {$ticketDescription}\n";
+        }
+        if ($requesterName !== '') {
+            $description .= "🙋 Solicitante: {$requesterName}\n";
+        }
+        if ($entityName !== '') {
+            $description .= "🏢 Empresa: {$entityName}\n";
         }
         $description .= "\n👤 Técnico: " . ($techName !== '' ? $techName : 'Não atribuído') . "\n";
         if ($contato !== '') {
