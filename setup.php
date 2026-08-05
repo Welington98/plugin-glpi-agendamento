@@ -154,6 +154,9 @@ function plugin_init_agendamento()
     $PLUGIN_HOOKS['csrf_compliant']['agendamento'] = true;
     $PLUGIN_HOOKS['add_css']['agendamento'] = ['public/css/agendamento.css'];
     $PLUGIN_HOOKS['add_javascript']['agendamento'] = ['public/js/agendamento-ticket.js', 'public/js/agendamento-ticket-tab.js'];
+    $PLUGIN_HOOKS[Glpi\Plugin\Hooks::ITEM_UPDATE]['agendamento'] = [
+        'Ticket' => 'plugin_agendamento_ticket_status_updated',
+    ];
 
     Plugin::registerClass('GlpiPlugin\\Agendamento\\MenuAgendamento');
     Plugin::registerClass('GlpiPlugin\\Agendamento\\Config', ['addtabon' => 'Config']);

@@ -2211,6 +2211,78 @@ class Agendamento
         }
     }
 
+    public static function syncStatusFromTicket(int $ticketId, int $ticketStatus): void
+    {
+        global $DB;
+
+        try {
+            if ((int) Config::getConfigValue('sync_status_from_ticket', 1) !== 1) {
+                return;
+            }
+
+            $targetStatus = match ($ticketStatus) {
+                GlpiTicket::SOLVED, GlpiTicket::CLOSED => self::STATUS_REALIZADO,
+                default => null,
+            };
+            if ($targetStatus === null || $ticketId <= 0) {
+                return;
+            }
+
+            self::ensureTableExists();
+
+            // Only ever consider the most recent agendamento for this ticket (never cascade
+            // into older rows): a ticket commonly transitions Solved -> Closed via SLA, and
+            // reacting to that second transition must not "complete" an unrelated older
+            // appointment just because it happens to still be open.
+            $rows = self::getForTicket($ticketId);
+            if ($rows === []) {
+                return;
+            }
+            $active = $rows[0];
+
+            $previousStatus = self::normalizeStatus((string) ($active['status'] ?? self::STATUS_AGENDADO));
+            if (in_array($previousStatus, [self::STATUS_CANCELADO, self::STATUS_REALIZADO], true)) {
+                return;
+            }
+            if ($previousStatus === $targetStatus) {
+                return;
+            }
+
+            $agendamentoId = (int) $active['id'];
+
+            $DB->beginTransaction();
+            try {
+                $DB->update(self::TABLE, [
+                    'status' => $targetStatus,
+                ], [
+                    'id' => $agendamentoId,
+                    'tickets_id' => $ticketId,
+                ]);
+
+                $descricao = sprintf(
+                    __('Status sincronizado automaticamente de %1$s para %2$s (chamado #%3$d alterado para "%4$s").', 'agendamento'),
+                    self::getStatusLabel($previousStatus),
+                    self::getStatusLabel($targetStatus),
+                    $ticketId,
+                    GlpiTicket::getStatus($ticketStatus)
+                );
+                self::logHistory($agendamentoId, $ticketId, 'status_auto_sincronizado', $descricao);
+
+                self::syncLinkedTask($agendamentoId);
+                self::syncGoogleCalendar($agendamentoId);
+
+                $DB->commit();
+            } catch (\Throwable $e) {
+                $DB->rollBack();
+                throw $e;
+            }
+
+            self::notify('update', $agendamentoId);
+        } catch (\Throwable $e) {
+            \Toolbox::logInFile('agendamento', "Auto status sync error for ticket #{$ticketId}: " . $e->getMessage());
+        }
+    }
+
     private static function logHistory(int $agendamentoId, int $ticketId, string $acao, string $descricao): void
     {
         global $DB;
