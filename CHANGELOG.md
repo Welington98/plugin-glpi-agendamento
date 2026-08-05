@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.14.0...v1.15.0) (2026-08-05)
+
+
+### Features
+
+* inclui descrição do chamado, solicitante e empresa no evento do Google Calendar ([28811ac](https://github.com/Welington98/plugin-glpi-agendamento/commit/28811acb9f28cd1dd2cf606fe0332a541c73b77a))
+
 # [1.14.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.13.0...v1.14.0) (2026-08-05)
 
 
