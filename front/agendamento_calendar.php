@@ -68,6 +68,11 @@ try {
         exit;
     }
 
+    if ($action === 'user_entity') {
+        echo json_encode(Agendamento::getUserEntity((int) ($_GET['user_id'] ?? 0)));
+        exit;
+    }
+
     if ($action === 'ticket_search') {
         echo json_encode([
             'results' => Agendamento::searchTickets((string) ($_GET['term'] ?? '')),
