@@ -192,4 +192,15 @@ final class AgendamentoHelpersTest extends TestCase
         $this->assertStringContainsString('#42', $message);
         $this->assertStringContainsString('17/07/2026 09:00', $message);
     }
+
+    public function testResolveTicketModeDefaultsToExisting(): void
+    {
+        $this->assertSame('existing', self::invokePrivate('resolveTicketMode', [[]]));
+        $this->assertSame('existing', self::invokePrivate('resolveTicketMode', [['agendamento_ticket_mode' => 'x']]));
+    }
+
+    public function testResolveTicketModeAcceptsNew(): void
+    {
+        $this->assertSame('new', self::invokePrivate('resolveTicketMode', [['agendamento_ticket_mode' => 'new']]));
+    }
 }
