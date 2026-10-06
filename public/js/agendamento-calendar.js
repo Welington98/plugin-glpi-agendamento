@@ -319,6 +319,34 @@
         }
     };
 
+    const applyRequesterEntity = async (userId) => {
+        const entitySelect = document.querySelector("select[name='agendamento_new_ticket_entity']");
+        if (!entitySelect || !userId || userId === '0') return;
+
+        try {
+            const response = await fetch(`${config.actionsUrl}?action=user_entity&user_id=${encodeURIComponent(userId)}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            });
+            if (!response.ok) return;
+
+            const data = await response.json();
+            if (data.entity_id === null || data.entity_id === undefined) return;
+
+            const id = String(data.entity_id);
+            const $select = $(entitySelect);
+            if (!$select.find('option').filter((_, option) => option.value === id).length) {
+                $select.append(new Option(data.entity_name || id, id, false, false));
+            }
+            $select.val(id).trigger('change');
+        } catch (e) {
+            console.error('Failed to fetch requester entity', e);
+        }
+    };
+
+    $(document).on('change', "select[name='agendamento_new_ticket_requester']", (event) => {
+        applyRequesterEntity(event.target.value);
+    });
+
     const loadAgendamentoHistory = async (agendamentoId) => {
         if (!detailHistory) return;
 

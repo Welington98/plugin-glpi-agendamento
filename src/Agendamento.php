@@ -1209,6 +1209,41 @@ class Agendamento
         return $rows;
     }
 
+    public static function getUserEntity(int $userId): array
+    {
+        global $DB;
+
+        $empty = ['entity_id' => null, 'entity_name' => ''];
+        if ($userId <= 0) {
+            return $empty;
+        }
+
+        $user = $DB->request(['SELECT' => ['entities_id'], 'FROM' => 'glpi_users', 'WHERE' => ['id' => $userId]])->current();
+        $entityId = (int) ($user['entities_id'] ?? 0);
+
+        // Usuário sem entidade padrão: usa a primeira entidade de seus perfis.
+        if ($entityId <= 0) {
+            $profile = $DB->request([
+                'SELECT' => ['entities_id'],
+                'FROM' => 'glpi_profiles_users',
+                'WHERE' => ['users_id' => $userId],
+                'ORDER' => 'id ASC',
+                'LIMIT' => 1,
+            ])->current();
+            $entityId = (int) ($profile['entities_id'] ?? 0);
+        }
+
+        // Entidade raiz (0) é válida, mas só se o usuário logado tiver acesso a ela.
+        if (!Session::haveAccessToEntity($entityId)) {
+            return $empty;
+        }
+
+        return [
+            'entity_id' => $entityId,
+            'entity_name' => (string) Dropdown::getDropdownName('glpi_entities', $entityId),
+        ];
+    }
+
     public static function getTicketMetadata(int $ticketId): array
     {
         if ($ticketId <= 0) {
