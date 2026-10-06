@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.15.0...v1.16.0) (2026-10-06)
+
+
+### Features
+
+* permite criar chamado direto pelo agendamento ([b5bd496](https://github.com/Welington98/plugin-glpi-agendamento/commit/b5bd496385f5409b887845e7c4a27b061c2085f6))
+
 # [1.15.0](https://github.com/Welington98/plugin-glpi-agendamento/compare/v1.14.0...v1.15.0) (2026-08-05)
 
 
