@@ -350,13 +350,76 @@ class Agendamento
                             <input type="hidden" name="agendamento_id" id="plugin-agendamento-form-id" value="<?php echo htmlescape((string) $editingAgendamentoId); ?>">
 
                             <div class="row g-3">
-                                <div class="col-12">
+                                <div class="col-12" id="plugin-agendamento-ticket-mode-wrap">
+                                    <div class="btn-group" role="group" aria-label="<?php echo htmlescape(__('Chamado (Ticket)', 'agendamento')); ?>">
+                                        <input type="radio" class="btn-check" name="agendamento_ticket_mode" id="plugin-agendamento-mode-existing" value="existing" checked>
+                                        <label class="btn btn-outline-primary btn-sm" for="plugin-agendamento-mode-existing"><?php echo htmlescape(__('Chamado existente', 'agendamento')); ?></label>
+                                        <input type="radio" class="btn-check" name="agendamento_ticket_mode" id="plugin-agendamento-mode-new" value="new">
+                                        <label class="btn btn-outline-primary btn-sm" for="plugin-agendamento-mode-new"><?php echo htmlescape(__('Novo chamado', 'agendamento')); ?></label>
+                                    </div>
+                                </div>
+
+                                <div class="col-12" id="plugin-agendamento-existing-ticket">
                                     <label for="plugin-agendamento-ticket-select" class="form-label required"><?php echo htmlescape(__('Chamado (Ticket)', 'agendamento')); ?></label>
                                     <select id="plugin-agendamento-ticket-select" name="agendamento_tickets_id" class="form-select" style="width:100%" required>
                                         <?php if ((int) $selectedTicket > 0 && $selectedTicketLabel !== '') { ?>
                                         <option value="<?php echo (int) $selectedTicket; ?>" selected><?php echo htmlescape($selectedTicketLabel); ?></option>
                                         <?php } ?>
                                     </select>
+                                </div>
+
+                                <div class="col-12 d-none" id="plugin-agendamento-new-ticket">
+                                    <div class="row g-3">
+                                        <div class="col-md-8">
+                                            <label for="agendamento_new_ticket_name" class="form-label required"><?php echo htmlescape(__('Título do chamado', 'agendamento')); ?></label>
+                                            <input type="text" id="agendamento_new_ticket_name" name="agendamento_new_ticket_name" class="form-control">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="agendamento_new_ticket_type" class="form-label"><?php echo htmlescape(__('Tipo do chamado', 'agendamento')); ?></label>
+                                            <select id="agendamento_new_ticket_type" name="agendamento_new_ticket_type" class="form-select">
+                                                <option value="<?php echo (int) GlpiTicket::INCIDENT_TYPE; ?>"><?php echo htmlescape(__('Incidente')); ?></option>
+                                                <option value="<?php echo (int) GlpiTicket::DEMAND_TYPE; ?>"><?php echo htmlescape(__('Requisição')); ?></option>
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label for="agendamento_new_ticket_content" class="form-label required"><?php echo htmlescape(__('Descrição', 'agendamento')); ?></label>
+                                            <textarea id="agendamento_new_ticket_content" name="agendamento_new_ticket_content" class="form-control" rows="3"></textarea>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label"><?php echo htmlescape(__('Solicitante', 'agendamento')); ?></label>
+                                            <?php
+                                            User::dropdown([
+                                                'name' => 'agendamento_new_ticket_requester',
+                                                'value' => (int) Session::getLoginUserID(),
+                                                'right' => 'all',
+                                                'width' => '100%',
+                                                'rand' => 1103,
+                                            ]);
+                                            ?>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label"><?php echo htmlescape(__('Categoria', 'agendamento')); ?></label>
+                                            <?php
+                                            \ITILCategory::dropdown([
+                                                'name' => 'agendamento_new_ticket_category',
+                                                'value' => 0,
+                                                'width' => '100%',
+                                                'rand' => 1104,
+                                            ]);
+                                            ?>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label"><?php echo htmlescape(__('Entidade', 'agendamento')); ?></label>
+                                            <?php
+                                            \Entity::dropdown([
+                                                'name' => 'agendamento_new_ticket_entity',
+                                                'value' => (int) Session::getActiveEntity(),
+                                                'width' => '100%',
+                                                'rand' => 1105,
+                                            ]);
+                                            ?>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="col-md-6">
@@ -589,7 +652,84 @@ class Agendamento
 
     public static function createFromForm(array $data): void
     {
-        self::create(self::prepareFormData($data));
+        if (self::resolveTicketMode($data) !== 'new') {
+            self::create(self::prepareFormData($data));
+            return;
+        }
+
+        if (!GlpiTicket::canCreate()) {
+            throw new \RuntimeException(__('Você não tem permissão para criar chamados.', 'agendamento'));
+        }
+
+        $payload = self::prepareFormData($data, true);
+
+        // Evita deixar um chamado órfão quando o horário já está ocupado.
+        $conflict = self::findConflict($payload['users_id_tech'], $payload['data_hora_inicio'], $payload['data_hora_fim']);
+        if ($conflict !== null) {
+            throw new \RuntimeException(self::buildConflictMessage($conflict));
+        }
+
+        $ticketId = self::createTicketFromForm($data, $payload['users_id_tech']);
+        $payload['tickets_id'] = $ticketId;
+
+        try {
+            self::create($payload);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException(
+                sprintf(__('O chamado #%d foi criado, mas o agendamento falhou: %s', 'agendamento'), $ticketId, $e->getMessage()),
+                0,
+                $e
+            );
+        }
+    }
+
+    private static function resolveTicketMode(array $data): string
+    {
+        return (($data['agendamento_ticket_mode'] ?? 'existing') === 'new') ? 'new' : 'existing';
+    }
+
+    private static function buildNewTicketInput(array $data, int $technicianId): array
+    {
+        $requesterId = (int) ($data['agendamento_new_ticket_requester'] ?? 0);
+        if ($requesterId <= 0) {
+            $requesterId = (int) Session::getLoginUserID();
+        }
+
+        $input = [
+            'name' => trim((string) ($data['agendamento_new_ticket_name'] ?? '')),
+            'content' => trim((string) ($data['agendamento_new_ticket_content'] ?? '')),
+            'type' => (int) ($data['agendamento_new_ticket_type'] ?? GlpiTicket::INCIDENT_TYPE),
+            'itilcategories_id' => (int) ($data['agendamento_new_ticket_category'] ?? 0),
+            '_users_id_requester' => $requesterId,
+            '_users_id_assign' => $technicianId,
+        ];
+
+        $entityId = $data['agendamento_new_ticket_entity'] ?? null;
+        if ($entityId !== null && $entityId !== '') {
+            $input['entities_id'] = (int) $entityId;
+        }
+
+        return $input;
+    }
+
+    private static function createTicketFromForm(array $data, int $technicianId): int
+    {
+        $ticket = new GlpiTicket();
+        $ticketId = (int) $ticket->add(self::buildNewTicketInput($data, $technicianId));
+
+        if ($ticketId <= 0) {
+            $messages = $_SESSION['MESSAGE_AFTER_REDIRECT'] ?? [];
+            $detail = '';
+            foreach ([ERROR, WARNING] as $level) {
+                foreach ((array) ($messages[$level] ?? []) as $msg) {
+                    $detail .= ' ' . trim(strip_tags((string) $msg));
+                }
+            }
+            unset($_SESSION['MESSAGE_AFTER_REDIRECT'][ERROR], $_SESSION['MESSAGE_AFTER_REDIRECT'][WARNING]);
+            throw new \RuntimeException(trim(__('Não foi possível criar o chamado.', 'agendamento') . $detail));
+        }
+
+        return $ticketId;
     }
 
     public static function updateFromForm(array $data): void
@@ -2817,7 +2957,7 @@ class Agendamento
         return $options[(string) $userId] ?? '';
     }
 
-    private static function prepareFormData(array $data): array
+    private static function prepareFormData(array $data, bool $skipTicket = false): array
     {
         $ticketId = (int) ($data['agendamento_tickets_id'] ?? 0);
         $technicianId = (int) ($data['agendamento_users_id_tech'] ?? 0);
@@ -2827,7 +2967,7 @@ class Agendamento
         $tipo = self::nullableString($data['agendamento_tipo'] ?? null);
         $notes = self::nullableString($data['agendamento_observacoes'] ?? null);
 
-        if ($ticketId <= 0) {
+        if (!$skipTicket && $ticketId <= 0) {
             throw new \RuntimeException(__('Selecione um chamado.', 'agendamento'));
         }
 
@@ -2847,9 +2987,11 @@ class Agendamento
             throw new \RuntimeException(__('A data final deve ser maior ou igual à data inicial.', 'agendamento'));
         }
 
-        $ticket = new GlpiTicket();
-        if (!$ticket->getFromDB($ticketId)) {
-            throw new \RuntimeException(__('Chamado não encontrado.', 'agendamento'));
+        if (!$skipTicket) {
+            $ticket = new GlpiTicket();
+            if (!$ticket->getFromDB($ticketId)) {
+                throw new \RuntimeException(__('Chamado não encontrado.', 'agendamento'));
+            }
         }
 
         $techName = self::resolveTechnicianName($technicianId);

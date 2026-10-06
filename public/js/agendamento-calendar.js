@@ -409,7 +409,44 @@
         });
     });
 
+    const modeWrap = document.getElementById('plugin-agendamento-ticket-mode-wrap');
+    const existingBlock = document.getElementById('plugin-agendamento-existing-ticket');
+    const newBlock = document.getElementById('plugin-agendamento-new-ticket');
+    const newTicketName = document.getElementById('agendamento_new_ticket_name');
+    const newTicketContent = document.getElementById('agendamento_new_ticket_content');
+
+    const applyTicketMode = (mode) => {
+        if (!existingBlock || !newBlock) {
+            return;
+        }
+        const isNew = mode === 'new';
+        existingBlock.classList.toggle('d-none', isNew);
+        newBlock.classList.toggle('d-none', !isNew);
+        if (ticketInput) {
+            ticketInput.required = !isNew;
+            ticketInput.disabled = isNew;
+        }
+        if (newTicketName) {
+            newTicketName.required = isNew;
+        }
+        if (newTicketContent) {
+            newTicketContent.required = isNew;
+        }
+        const radio = document.getElementById(isNew ? 'plugin-agendamento-mode-new' : 'plugin-agendamento-mode-existing');
+        if (radio) {
+            radio.checked = true;
+        }
+    };
+
+    document.querySelectorAll("input[name='agendamento_ticket_mode']").forEach((radio) => {
+        radio.addEventListener('change', () => applyTicketMode(radio.value));
+    });
+
     const prefillCreateForm = (start, end) => {
+        if (modeWrap) {
+            modeWrap.classList.remove('d-none');
+        }
+        applyTicketMode('existing');
         if (formActionInput) {
             formActionInput.value = 'create';
         }
@@ -453,6 +490,10 @@
 
     const openEditForm = (event) => {
         const props = event.extendedProps || {};
+        if (modeWrap) {
+            modeWrap.classList.add('d-none');
+        }
+        applyTicketMode('existing');
         if (formActionInput) {
             formActionInput.value = 'edit';
         }
